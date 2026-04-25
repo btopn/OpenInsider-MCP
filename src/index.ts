@@ -13,7 +13,7 @@ import { officerBuys } from "./tools/officerBuys.js";
 import { screen } from "./tools/screen.js";
 import type { Trade } from "./types.js";
 
-const server = new McpServer({ name: "openinsider-mcp", version: "0.1.0" });
+const server = new McpServer({ name: "openinsider-mcp", version: "0.2.0" });
 
 const periodSchema = z.enum(["day", "week", "month", "quarter", "year"]);
 const txFilterSchema = z.enum(["all", "buys", "sells"]);

@@ -1,6 +1,6 @@
 const BASE_URL = "http://openinsider.com";
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const USER_AGENT = "openinsider-mcp/0.1.0 (+https://github.com/btopn/OpenInsider-MCP)";
+const USER_AGENT = "openinsider-mcp/0.2.0 (+https://github.com/btopn/OpenInsider-MCP)";
 
 interface CacheEntry {
   html: string;
