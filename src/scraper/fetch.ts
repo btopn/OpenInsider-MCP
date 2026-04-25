@@ -1,13 +1,8 @@
+import { cacheGet, cacheSet } from "../cache.js";
+
 const BASE_URL = "http://openinsider.com";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const USER_AGENT = "openinsider-mcp/0.2.0 (+https://github.com/btopn/OpenInsider-MCP)";
-
-interface CacheEntry {
-  html: string;
-  expiresAt: number;
-}
-
-const cache = new Map<string, CacheEntry>();
 
 export interface FetchOptions {
   cache?: boolean;
@@ -18,16 +13,16 @@ export async function fetchOpenInsider(path: string, options: FetchOptions = {})
   const url = path.startsWith("http") ? path : `${BASE_URL}${path}`;
 
   if (useCache) {
-    const hit = cache.get(url);
-    if (hit && hit.expiresAt > Date.now()) {
-      return hit.html;
+    const hit = cacheGet<string>(url);
+    if (hit !== undefined) {
+      return hit;
     }
   }
 
   const html = await fetchWithRetry(url);
 
   if (useCache) {
-    cache.set(url, { html, expiresAt: Date.now() + CACHE_TTL_MS });
+    cacheSet(url, html, CACHE_TTL_MS);
   }
 
   return html;
@@ -61,6 +56,4 @@ async function doFetch(url: string): Promise<string> {
 
 class TransientError extends Error {}
 
-export function clearCache(): void {
-  cache.clear();
-}
+export { clearCache } from "../cache.js";
