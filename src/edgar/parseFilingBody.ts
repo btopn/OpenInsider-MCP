@@ -89,7 +89,7 @@ export function parse13DDetails(html: string): Parsed13DDetails {
 
   let filerName: string | null = null;
   const filerMatch = bodyText.match(
-    /Names?\s+of\s+Reporting\s+Persons?(?:\s*\(?\s*S?\s*\)?)?[\s\S]{0,120}?\s([A-Z][A-Za-z0-9\s&,.\-']{3,100}?)\s+(?:S\.S\.|I\.R\.S\.|CITIZENSHIP|Source\s+of)/i,
+    /Names?\s+of\s+Reporting\s+Persons?\s+([A-Z][A-Za-z0-9\s&,.\-']{3,100}?)\s+(?:S\.S\.|I\.R\.S\.|CITIZENSHIP\s+OR|Source\s+of)/i,
   );
   if (filerMatch) filerName = filerMatch[1].trim();
 

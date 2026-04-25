@@ -52,7 +52,7 @@ export function parseFtdFile(text: string): RawFtdRow[] {
     date: header.findIndex((h) => /^settlement\s*date$/i.test(h) || /^date$/i.test(h)),
     cusip: header.findIndex((h) => /^cusip$/i.test(h)),
     symbol: header.findIndex((h) => /^symbol$/i.test(h)),
-    quantity: header.findIndex((h) => /quantity\s*\(failed/i.test(h) || /^qty\s*fails$/i.test(h) || /^quantity$/i.test(h)),
+    quantity: header.findIndex((h) => /quantity.*fail/i.test(h) || /^qty\s*fails?$/i.test(h) || /^quantity$/i.test(h)),
     description: header.findIndex((h) => /description/i.test(h)),
     price: header.findIndex((h) => /^price$/i.test(h)),
   };
@@ -89,11 +89,15 @@ export function parseThresholdFile(text: string): Set<string> {
   const set = new Set<string>();
   if (lines.length === 0) return set;
 
-  // Skip header(s); find symbol column heuristically.
+  // Auto-detect delimiter: pipes (Nasdaq style) vs whitespace/CSV (NYSE style).
+  // Mixing these in one regex breaks pipe files with multi-word column headers.
+  const hasPipe = lines[0].includes("|");
+  const splitter: RegExp = hasPipe ? /\|/ : /[\s,]+/;
+
   let symbolIdx = -1;
   let dataStart = 0;
   for (let i = 0; i < Math.min(3, lines.length); i++) {
-    const cols = lines[i].split(/[|\s]+/).map((s) => s.trim());
+    const cols = lines[i].split(splitter).map((s) => s.trim());
     const sIdx = cols.findIndex((c) => /^symbol$/i.test(c));
     if (sIdx >= 0) {
       symbolIdx = sIdx;
@@ -102,13 +106,12 @@ export function parseThresholdFile(text: string): Set<string> {
     }
   }
   if (symbolIdx < 0) {
-    // Fallback: assume first column is the symbol
     symbolIdx = 0;
     dataStart = 0;
   }
 
   for (let i = dataStart; i < lines.length; i++) {
-    const cols = lines[i].split(/[|\s]+/);
+    const cols = lines[i].split(splitter);
     const sym = (cols[symbolIdx] ?? "").trim().toUpperCase();
     if (sym && /^[A-Z][A-Z0-9.\-]{0,9}$/.test(sym)) {
       set.add(sym);
