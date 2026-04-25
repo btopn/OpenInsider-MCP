@@ -1,5 +1,10 @@
 # openinsider-mcp
 
+[![npm version](https://img.shields.io/npm/v/openinsider-mcp.svg)](https://www.npmjs.com/package/openinsider-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/openinsider-mcp.svg)](https://www.npmjs.com/package/openinsider-mcp)
+[![CI](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 An [MCP](https://modelcontextprotocol.io) server that exposes [OpenInsider.com](http://openinsider.com) — SEC Form 4 insider trading data — to Claude. Drop it into your Claude config and Claude can query insider activity directly during long research sessions, without burning context on web browsing.
 
 OpenInsider already aggregates SEC Form 4 filings, computes ownership deltas, and detects cluster buys. This server is a thin shim over their public pages, normalizes the result to JSON, and exposes 8 tools.
