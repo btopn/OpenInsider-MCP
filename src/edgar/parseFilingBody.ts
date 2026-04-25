@@ -70,3 +70,40 @@ export function parseS3ShelfDetails(html: string): {
 
   return { shelfAmount, useOfProceedsExcerpt };
 }
+
+export interface Parsed13DDetails {
+  filerName: string | null;
+  pctOwned: number | null;
+  purposeExcerpt: string | null;
+}
+
+/**
+ * Best-effort parse of a Schedule 13D body. Filer name comes from the
+ * "Names of Reporting Persons" cover-page block; pct owned from the
+ * "Percent of Class" cover-page line; purpose from Item 4. All fields
+ * are null when the parse heuristics don't match — the LLM consumer
+ * can fall back to the primary doc URL for the raw filing.
+ */
+export function parse13DDetails(html: string): Parsed13DDetails {
+  const bodyText = htmlToText(html);
+
+  let filerName: string | null = null;
+  const filerMatch = bodyText.match(
+    /Names?\s+of\s+Reporting\s+Persons?(?:\s*\(?\s*S?\s*\)?)?[\s\S]{0,120}?\s([A-Z][A-Za-z0-9\s&,.\-']{3,100}?)\s+(?:S\.S\.|I\.R\.S\.|CITIZENSHIP|Source\s+of)/i,
+  );
+  if (filerMatch) filerName = filerMatch[1].trim();
+
+  let pctOwned: number | null = null;
+  const pctMatch = bodyText.match(/Percent\s+of\s+Class[\s\S]{0,300}?(\d{1,3}(?:\.\d+)?)\s*%/i);
+  if (pctMatch) {
+    const n = parseFloat(pctMatch[1]);
+    if (isFinite(n) && n > 0 && n <= 100) pctOwned = n;
+  }
+
+  const purposeMatch = bodyText.match(
+    /Item\s+4\.?\s+Purpose(?:\s+of\s+(?:the\s+)?Transaction)?\.?[\s:]*([\s\S]{0,800})/i,
+  );
+  const purposeExcerpt = purposeMatch ? purposeMatch[1].trim().slice(0, 500) : null;
+
+  return { filerName, pctOwned, purposeExcerpt };
+}
