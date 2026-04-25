@@ -1,7 +1,7 @@
 {
   "name": "openinsider-mcp",
   "version": "0.1.0",
-  "description": "MCP server that exposes OpenInsider.com (SEC Form 4 insider trading data) to Claude.",
+  "description": "MCP server that exposes openinsider.com to any MCP compatible client.",
   "license": "MIT",
   "author": "btopn",
   "homepage": "https://github.com/btopn/OpenInsider-MCP",
@@ -42,10 +42,7 @@
   },
   "keywords": [
     "mcp",
-    "model-context-protocol",
     "openinsider",
-    "sec",
-    "form-4",
     "insider-trading",
     "claude"
   ]
