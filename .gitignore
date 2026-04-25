@@ -8,3 +8,4 @@ coverage/
 # scratch files
 _recon.*
 tests/fixtures/insider_name.html
+CLAUDE.md
