@@ -1,25 +1,32 @@
-import { fetchFinra } from "./fetch.js";
+import AdmZip from "adm-zip";
+import { fetchFinra, fetchFinraBinary } from "./fetch.js";
 
 const FTD_TTL_MS = 24 * 60 * 60 * 1000;
 const THRESHOLD_TTL_MS = 6 * 60 * 60 * 1000;
 
 /**
  * SEC failures-to-deliver bi-monthly file URL.
+ * Accepts either YYYYMMDD (auto-converted by half: day<=15 -> 'a', else 'b')
+ * or a literal YYYYMM[ab] period key.
  *
- * TODO(deployment): verify URL format on first live use. SEC publishes FTD
- * files at sec.gov/data/foiadocsfailsdatahtm; the canonical CSV/text path
- * pattern may shift.
+ * Verified pattern (2026-04): files ship as ZIP archives containing a single
+ * pipe-delimited text file with the same name minus extension.
  */
-export function buildFtdUrl(reportDateYYYYMMDD: string): string {
-  return `https://www.sec.gov/files/data/fails-deliver-data/cnsfails${reportDateYYYYMMDD}.txt`;
+export function buildFtdUrl(periodKey: string): string {
+  let key = periodKey;
+  if (/^\d{8}$/.test(periodKey)) {
+    const yyyymm = periodKey.slice(0, 6);
+    const day = parseInt(periodKey.slice(6, 8), 10);
+    key = yyyymm + (day <= 15 ? "a" : "b");
+  }
+  return `https://www.sec.gov/files/data/fails-deliver-data/cnsfails${key}.zip`;
 }
 
 /**
  * Reg SHO Threshold List URLs. Two sources (NYSE + Nasdaq); we merge into a
  * unified set of tickers that are currently on either threshold list.
  *
- * TODO(deployment): verify URL formats. The historical pattern was a daily
- * txt file; both exchanges have moved formats over the years.
+ * TODO(deployment): URL formats may have changed; verify on first live use.
  */
 export function buildThresholdUrls(dateYYYYMMDD: string): { nasdaq: string; nyse: string } {
   return {
@@ -37,11 +44,6 @@ export interface RawFtdRow {
   price: number | null;
 }
 
-/**
- * Parse a SEC FTD bi-monthly file (pipe-delimited, one row per failure).
- * NOTE: SEC FTD files contain MULTIPLE rows per ticker (one per settlement
- * date in the period). The caller should aggregate as needed.
- */
 export function parseFtdFile(text: string): RawFtdRow[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   const rows: RawFtdRow[] = [];
@@ -52,7 +54,9 @@ export function parseFtdFile(text: string): RawFtdRow[] {
     date: header.findIndex((h) => /^settlement\s*date$/i.test(h) || /^date$/i.test(h)),
     cusip: header.findIndex((h) => /^cusip$/i.test(h)),
     symbol: header.findIndex((h) => /^symbol$/i.test(h)),
-    quantity: header.findIndex((h) => /quantity.*fail/i.test(h) || /^qty\s*fails?$/i.test(h) || /^quantity$/i.test(h)),
+    quantity: header.findIndex(
+      (h) => /quantity.*fail/i.test(h) || /^qty\s*fails?$/i.test(h) || /^quantity$/i.test(h),
+    ),
     description: header.findIndex((h) => /description/i.test(h)),
     price: header.findIndex((h) => /^price$/i.test(h)),
   };
@@ -79,18 +83,11 @@ export function parseFtdFile(text: string): RawFtdRow[] {
   return rows;
 }
 
-/**
- * Parse a Reg SHO threshold list file (typically pipe-delimited or whitespace-
- * delimited; both NYSE and Nasdaq use slight variations). Returns a Set of
- * tickers currently on the threshold list.
- */
 export function parseThresholdFile(text: string): Set<string> {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   const set = new Set<string>();
   if (lines.length === 0) return set;
 
-  // Auto-detect delimiter: pipes (Nasdaq style) vs whitespace/CSV (NYSE style).
-  // Mixing these in one regex breaks pipe files with multi-word column headers.
   const hasPipe = lines[0].includes("|");
   const splitter: RegExp = hasPipe ? /\|/ : /[\s,]+/;
 
@@ -152,10 +149,6 @@ function lastBusinessDayOfMonth(year: number, monthZeroIdx: number): Date {
   return last;
 }
 
-/**
- * Generate the most recent N bi-monthly settlement dates (15th + last business
- * day) ending on or before `now`. Same cadence as FINRA SI.
- */
 export function recentBiMonthlyDates(now: Date, count: number): string[] {
   const dates: Date[] = [];
   let year = now.getFullYear();
@@ -190,13 +183,32 @@ async function getCurrentThresholdSet(now: Date = new Date()): Promise<Set<strin
 
   const merged = new Set<string>();
   for (const url of [urls.nasdaq, urls.nyse]) {
-    const text = await fetchFinra(url, { ttlMs: THRESHOLD_TTL_MS, return404AsNull: true });
-    if (text === null) continue;
-    for (const sym of parseThresholdFile(text)) {
-      merged.add(sym);
+    try {
+      const text = await fetchFinra(url, { ttlMs: THRESHOLD_TTL_MS, return404AsNull: true });
+      if (text === null) continue;
+      for (const sym of parseThresholdFile(text)) {
+        merged.add(sym);
+      }
+    } catch {
+      // fail-soft: threshold list is supplementary; an outage shouldn't block FTD data
     }
   }
   return merged;
+}
+
+/**
+ * Extract the single text entry from a SEC FTD ZIP archive. Returns null if
+ * the ZIP is empty or unreadable.
+ */
+function extractFtdText(buffer: ArrayBuffer): string | null {
+  try {
+    const zip = new AdmZip(Buffer.from(buffer));
+    const entries = zip.getEntries();
+    if (entries.length === 0) return null;
+    return entries[0].getData().toString("utf-8");
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -215,27 +227,45 @@ export async function getFailuresToDeliver(
   const thresholdSet = await getCurrentThresholdSet(now);
   const onThresholdList = thresholdSet.has(upperTicker);
 
+  // Map YYYYMMDD dates to unique YYYYMM[ab] period keys (each half-month
+  // file aggregates multiple settlement dates).
+  const periodKeys = new Set<string>();
+  for (const d of dates) {
+    const yyyymm = d.slice(0, 6);
+    const day = parseInt(d.slice(6, 8), 10);
+    periodKeys.add(yyyymm + (day <= 15 ? "a" : "b"));
+  }
+
   const rows: FtdRow[] = [];
-  for (const dateStr of dates) {
-    const url = buildFtdUrl(dateStr);
-    const text = await fetchFinra(url, { ttlMs: FTD_TTL_MS, return404AsNull: true });
+  for (const periodKey of periodKeys) {
+    const url = buildFtdUrl(periodKey);
+    const buf = await fetchFinraBinary(url, { ttlMs: FTD_TTL_MS, return404AsNull: true });
+    if (buf === null) continue;
+    const text = extractFtdText(buf);
     if (text === null) continue;
 
     const allRows = parseFtdFile(text);
     let totalShares = 0;
     let totalValue = 0;
     let anyHit = false;
+    let mostRecentSettlement = "";
 
     for (const r of allRows) {
       if (r.symbol !== upperTicker) continue;
       anyHit = true;
       totalShares += r.quantityFails;
       if (r.price !== null) totalValue += r.quantityFails * r.price;
+      if (r.settlementDate > mostRecentSettlement) mostRecentSettlement = r.settlementDate;
     }
 
     if (anyHit) {
+      // Period date for the row: most recent settlement within the half-month
+      // (or the period midpoint if settlement dates weren't captured).
+      const periodDate = mostRecentSettlement
+        ? toIso(mostRecentSettlement)
+        : `${periodKey.slice(0, 4)}-${periodKey.slice(4, 6)}-${periodKey.endsWith("a") ? "15" : "28"}`;
       rows.push({
-        date: toIso(dateStr),
+        date: periodDate,
         ftdShares: totalShares,
         ftdValue: totalValue,
         onThresholdList,
@@ -243,5 +273,7 @@ export async function getFailuresToDeliver(
     }
   }
 
+  // Sort descending by date
+  rows.sort((a, b) => (a.date < b.date ? 1 : -1));
   return rows;
 }

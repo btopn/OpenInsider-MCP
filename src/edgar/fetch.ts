@@ -1,6 +1,11 @@
 import { cacheGet, cacheSet } from "../cache.js";
 
-const USER_AGENT = "openinsider-mcp/0.2.0 (+https://github.com/btopn/OpenInsider-MCP)";
+// SEC's bot detection requires a User-Agent that includes contact info in the
+// "Name email@domain" form. The slash/parenthesis form returns 403. Override
+// via OPENINSIDER_MCP_UA env var to identify your deployment to SEC; the
+// default works but using your own contact is the polite practice.
+const USER_AGENT =
+  process.env.OPENINSIDER_MCP_UA ?? "openinsider-mcp 0.2.0 contact@example.com";
 const MIN_INTERVAL_MS = 110;
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 

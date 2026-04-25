@@ -258,7 +258,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
   ticker:        string;
   reportDate:    string;          // ISO YYYY-MM-DD
   sharesShort:   number;
-  pctOfFloat:    number | null;   // null in v0.2.0 (would require shares-outstanding source)
+  pctOfFloat:    number | null;   // sharesShort / sharesOutstanding via SEC XBRL (dei:EntityCommonStockSharesOutstanding); null when the company has no XBRL filings
   daysToCover:   number | null;
   delta?: {                       // present for entries that have a prior period
     sharesShortDelta: number;

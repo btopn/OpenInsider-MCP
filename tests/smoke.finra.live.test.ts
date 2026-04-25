@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { fetchFinra } from "../src/finra/fetch.js";
+import { fetchFinra, fetchFinraBinary } from "../src/finra/fetch.js";
 import {
   buildShortInterestUrl,
+  getShortInterestSnapshots,
   recentSettlementDates,
 } from "../src/finra/parseShortInterest.js";
 import { buildRegShoUrl, recentBusinessDays } from "../src/finra/parseRegSho.js";
@@ -51,13 +52,23 @@ liveSmoke("live FINRA / SEC short data smoke test (URL drift detector)", () => {
     ).toBe(true);
   }, 90_000);
 
-  it("SEC FTD URL returns content for at least one recent bi-monthly date", async () => {
+  it("getShortInterestSnapshots populates pctOfFloat via SEC XBRL for AAPL", async () => {
+    const snapshots = await getShortInterestSnapshots("AAPL", 4);
+    expect(snapshots.length).toBeGreaterThan(0);
+    const first = snapshots[0];
+    expect(first.sharesShort).toBeGreaterThan(0);
+    expect(first.pctOfFloat).not.toBeNull();
+    expect(first.pctOfFloat!).toBeGreaterThan(0);
+    expect(first.pctOfFloat!).toBeLessThan(1); // SI should be a small fraction of shares outstanding
+  }, 120_000);
+
+  it("SEC FTD URL returns ZIP content for at least one recent bi-monthly date", async () => {
     const dates = recentBiMonthlyDates(new Date(), 6);
     let succeeded = false;
     for (const dateStr of dates) {
       const url = buildFtdUrl(dateStr);
-      const text = await fetchFinra(url, { return404AsNull: true });
-      if (text !== null && text.length > 0) {
+      const buf = await fetchFinraBinary(url, { return404AsNull: true });
+      if (buf !== null && buf.byteLength > 100) {
         succeeded = true;
         break;
       }
