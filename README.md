@@ -5,9 +5,13 @@
 [![CI](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server that exposes [OpenInsider.com](http://openinsider.com) — SEC Form 4 insider trading data — to Claude. Drop it into your Claude config and Claude can query insider activity directly during long research sessions, without burning context on web browsing.
+An [MCP](https://modelcontextprotocol.io) server that exposes [OpenInsider.com](http://openinsider.com) — SEC Form 4 insider trading data — plus complementary corporate-event and short-data signals to Claude. Drop it into your Claude config and Claude can query 15 free-data signals directly during long research sessions, without burning context on web browsing.
 
-OpenInsider already aggregates SEC Form 4 filings, computes ownership deltas, and detects cluster buys. This server is a thin shim over their public pages, normalizes the result to JSON, and exposes 8 tools.
+The server is positioned as a pure data layer: no scoring, no compositing, no editorialization. Each tool returns clean, well-typed observations with citations and gotchas baked into the tool descriptions. The orchestrator (Claude) decides what is significant.
+
+**v0.1.0 (8 tools)** — OpenInsider Form 4: search by ticker / insider, latest trades, top buys / sells, cluster buys, officer buys, generic screener.
+
+**v0.2.0 (7 new tools)** — SEC EDGAR (8-K material events, NT-10K/Q late filings, 13D activist filings, S-3 / 424B5 dilution) plus FINRA / SEC short data (bi-monthly short interest with delta, daily Reg SHO short volume, failures-to-deliver + threshold list).
 
 > Be polite. This scrapes a free public site. The server identifies itself with a `User-Agent` and keeps a 5-minute in-memory cache so repeated queries in a research session don't re-fetch.
 
@@ -145,6 +149,125 @@ Generic OpenInsider screener with flexible filters. Use this when none of the na
   "daysBack": 30
 }
 ```
+
+## v0.2.0 signal tools
+
+These 7 tools are all ticker-scoped and source from free public data (SEC EDGAR submissions API + filing bodies; FINRA / SEC short data). They return their own output shapes — `EdgarFiling[]` or `ShortSnapshot[]` rather than `Trade[]`.
+
+### `recent_sec_filings`
+
+Recent 8-K material event filings for a ticker, with parsed item codes (e.g. 1.02 contract terminated, 4.02 restatement, 5.02 officer change, 2.06 impairment).
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `daysBack` | int (optional) | default 30 |
+| `itemCodes` | string[] (optional) | filter to specific 8-K items, e.g. `["4.02", "5.02"]` |
+
+### `late_filings`
+
+NT-10K / NT-10Q late filing notices, with parsed reason text and a heuristic category (`accounting` / `corporate` / `multiple` / `unspecified`). Accounting reasons are the strongest bearish variant.
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `daysBack` | int (optional) | default 365 |
+
+### `activist_filings`
+
+Schedule 13D activist filings (initial + amendments). Returns filer name, ownership pct, and Item 4 'Purpose of Transaction' excerpt when parseable.
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `daysBack` | int (optional) | default 365 |
+| `includeAmendments` | bool (optional) | default true |
+
+### `dilution_filings`
+
+S-3 shelf registrations and 424B5 takedowns, with parsed shelf amount and use-of-proceeds excerpt.
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `daysBack` | int (optional) | default 365 |
+
+### `short_interest`
+
+FINRA bi-monthly short interest snapshots with delta vs prior period.
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `periodsBack` | int (optional) | default 6 (~3 months of bi-monthly periods) |
+
+> Bi-monthly cadence: settlement on 15th + last business day, published ~7 business days later — most recent snapshot may lag spot price by 1-2 weeks.
+
+### `daily_short_volume`
+
+FINRA Reg SHO daily short-sale volume — daily flow (not standing position; for that, use `short_interest`). Aggregated across CNMS, FNRA, FNYX, FNQC venues.
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `daysBack` | int (optional) | default 30 |
+
+### `failures_to_deliver`
+
+SEC failures-to-deliver per bi-monthly period plus current Reg SHO threshold-list flag (>10K shares + >0.5% of TSO failed for 5 consecutive settlement days).
+
+| Param | Type | Notes |
+|---|---|---|
+| `ticker` | string | yes |
+| `periodsBack` | int (optional) | default 4 (~2 months) |
+
+> ETF FTDs are largely market-maker operational; post-T+1 settlement (May 2024) aggregate FTD volumes have decreased. Interpret with caution.
+
+## EdgarFiling object
+
+The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
+
+```ts
+{
+  ticker:                string;
+  cik:                   string;          // 10-digit zero-padded
+  formType:              string;          // "8-K", "13D", "NT-10Q", "S-3", etc.
+  filingDate:            string;          // ISO YYYY-MM-DD
+  acceptanceDateTime:    string;
+  accessionNumber:       string;          // canonical "0000XXXXXX-YY-NNNNNN"
+  primaryDocUrl:         string;          // direct link to the filing body
+  // Form-specific (optional, populated by the relevant tool):
+  itemCodes?:            string[];        // 8-K item codes
+  reasonText?:           string | null;   // NT-10K/Q narrative excerpt
+  reasonCategory?:       "accounting" | "corporate" | "multiple" | "unspecified";
+  filerName?:            string;          // 13D
+  pctOwned?:             number | null;   // 13D, % of class
+  purposeExcerpt?:       string | null;   // 13D Item 4
+  isAmendment?:          boolean;         // 13D, S-3
+  shelfAmount?:          number | null;   // S-3, dollars
+  useOfProceedsExcerpt?: string | null;   // S-3
+}
+```
+
+## ShortSnapshot object
+
+`short_interest` returns `{ count, snapshots: ShortSnapshot[] }`:
+
+```ts
+{
+  ticker:        string;
+  reportDate:    string;          // ISO YYYY-MM-DD
+  sharesShort:   number;
+  pctOfFloat:    number | null;   // null in v0.2.0 (would require shares-outstanding source)
+  daysToCover:   number | null;
+  delta?: {                       // present for entries that have a prior period
+    sharesShortDelta: number;
+    pctDelta:         number;     // decimal, e.g. 0.12 = +12%
+  };
+}
+```
+
+`daily_short_volume` returns `{ count, rows: { date, shortVolume, totalVolume, shortRatio }[] }`. `failures_to_deliver` returns `{ count, rows: { date, ftdShares, ftdValue, onThresholdList }[] }`.
 
 ## Trade object
 
