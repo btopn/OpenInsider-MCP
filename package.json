@@ -1,0 +1,52 @@
+{
+  "name": "openinsider-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that exposes OpenInsider.com (SEC Form 4 insider trading data) to Claude.",
+  "license": "MIT",
+  "author": "btopn",
+  "homepage": "https://github.com/btopn/openinsider-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/btopn/openinsider-mcp.git"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "openinsider-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "SMOKE=1 vitest run tests/smoke.live.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "cheerio": "^1.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "openinsider",
+    "sec",
+    "form-4",
+    "insider-trading",
+    "claude"
+  ]
+}
