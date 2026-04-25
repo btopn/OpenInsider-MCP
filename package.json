@@ -4,10 +4,10 @@
   "description": "MCP server that exposes OpenInsider.com (SEC Form 4 insider trading data) to Claude.",
   "license": "MIT",
   "author": "btopn",
-  "homepage": "https://github.com/btopn/openinsider-mcp",
+  "homepage": "https://github.com/btopn/OpenInsider-MCP",
   "repository": {
     "type": "git",
-    "url": "https://github.com/btopn/openinsider-mcp.git"
+    "url": "https://github.com/btopn/OpenInsider-MCP.git"
   },
   "type": "module",
   "main": "dist/index.js",

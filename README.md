@@ -202,7 +202,7 @@ In practice, when you ask Claude something like *"Has Tim Cook sold any AAPL rec
 ## Develop
 
 ```sh
-git clone https://github.com/btopn/openinsider-mcp
+git clone https://github.com/btopn/OpenInsider-MCP
 cd openinsider-mcp
 npm install
 npm run build
