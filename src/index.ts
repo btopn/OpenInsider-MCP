@@ -210,6 +210,12 @@ Use when:
       .array(z.string())
       .optional()
       .describe("Filter to specific 8-K item codes, e.g. ['4.02', '5.02']. Omit for all items."),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Cap the number of filings returned. Default 50. If set higher than what's available, just returns whatever's there."),
   },
   async (args) => {
     try {
@@ -237,6 +243,12 @@ Use when:
       .positive()
       .optional()
       .describe("Lookback window in days. Default 365."),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Cap the number of filings returned (and bodies fetched for reason classification). Default 50. Body fetching is sequential — high limits + very-active filers can be slow."),
   },
   async (args) => {
     try {
@@ -268,6 +280,12 @@ Use when:
       .boolean()
       .optional()
       .describe("Include SC 13D/A amendments. Default true."),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Cap the number of filings returned (and bodies fetched for filer/pct/purpose). Default 50."),
   },
   async (args) => {
     try {
@@ -296,6 +314,12 @@ Important context: small-cap biotech S-3 takedowns are frequently pre-PDUFA capi
       .positive()
       .optional()
       .describe("Lookback window in days. Default 365."),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Cap the number of filings returned (and bodies fetched for shelf amount / use of proceeds). Default 50. Banks file dozens of 424B prospectus supplements per year — keep the default unless you specifically need full coverage."),
   },
   async (args) => {
     try {

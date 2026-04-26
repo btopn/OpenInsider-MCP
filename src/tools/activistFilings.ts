@@ -9,11 +9,13 @@ export interface ActivistFilingsArgs {
   ticker: string;
   daysBack?: number;
   includeAmendments?: boolean;
+  limit?: number;
 }
 
 export async function activistFilings(args: ActivistFilingsArgs): Promise<EdgarFiling[]> {
   const daysBack = args.daysBack ?? 365;
   const includeAmendments = args.includeAmendments !== false;
+  const limit = args.limit ?? 50;
   const data = await getRecentFilings(args.ticker);
   if (!data) return [];
 
@@ -21,6 +23,7 @@ export async function activistFilings(args: ActivistFilingsArgs): Promise<EdgarF
   const out: EdgarFiling[] = [];
 
   for (const f of data.filings) {
+    if (out.length >= limit) break;
     const isAmendment = f.form === "SC 13D/A";
     const isInitial = f.form === "SC 13D";
     if (!isAmendment && !isInitial) continue;

@@ -36,6 +36,10 @@ Seven new ticker-scoped MCP tools across two new free public data sources, takin
 - **`jsonResult` helper in `src/index.ts`** generalized to `jsonResult<T>(items: T[], key: string = "trades")` so new tools can pass their own envelope key.
 - **README** restructured: tool reference grouped by data source instead of changelog-style version splits; added quick-reference table, sample outputs, and project-as-data-layer framing; type definitions collapsed behind `<details>` to lighten first-load reading.
 
+### Changed
+
+- **EDGAR tools now accept a `limit` arg (default 50).** `recent_sec_filings`, `late_filings`, `activist_filings`, and `dilution_filings` each cap the number of filings returned (and bodies fetched, for the three that parse bodies). The default protects against MCP-client request-timeout failures on very-active filers — JPM, for example, files dozens of 424B prospectus supplements per year and previously timed out on `dilution_filings`. Callers can raise `limit` arbitrarily; the tool returns whatever's available up to that ceiling.
+
 ### Fixed
 
 - **`pctOfFloat` now falls back to `us-gaap:CommonStockSharesOutstanding`** when the cover-page `dei:EntityCommonStockSharesOutstanding` tag isn't filed. Discovered via APPN, which doesn't file the dei tag at all (404) but reports under us-gaap with 74M shares as of 2025-12-31. Fix in `src/edgar/companyFacts.ts` tries dei first then us-gaap; null only when both miss.

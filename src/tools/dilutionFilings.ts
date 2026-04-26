@@ -9,10 +9,12 @@ const DILUTION_FORMS = new Set(["S-3", "S-3/A", "S-3ASR", "424B5", "424B2", "424
 export interface DilutionFilingsArgs {
   ticker: string;
   daysBack?: number;
+  limit?: number;
 }
 
 export async function dilutionFilings(args: DilutionFilingsArgs): Promise<EdgarFiling[]> {
   const daysBack = args.daysBack ?? 365;
+  const limit = args.limit ?? 50;
   const data = await getRecentFilings(args.ticker);
   if (!data) return [];
 
@@ -20,6 +22,7 @@ export async function dilutionFilings(args: DilutionFilingsArgs): Promise<EdgarF
   const out: EdgarFiling[] = [];
 
   for (const f of data.filings) {
+    if (out.length >= limit) break;
     if (!DILUTION_FORMS.has(f.form)) continue;
     if (f.filingDate < cutoff) continue;
 

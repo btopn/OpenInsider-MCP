@@ -9,10 +9,12 @@ const NT_FORMS = new Set(["NT 10-K", "NT 10-Q", "NT 10-K/A", "NT 10-Q/A"]);
 export interface LateFilingsArgs {
   ticker: string;
   daysBack?: number;
+  limit?: number;
 }
 
 export async function lateFilings(args: LateFilingsArgs): Promise<EdgarFiling[]> {
   const daysBack = args.daysBack ?? 365;
+  const limit = args.limit ?? 50;
   const data = await getRecentFilings(args.ticker);
   if (!data) return [];
 
@@ -20,6 +22,7 @@ export async function lateFilings(args: LateFilingsArgs): Promise<EdgarFiling[]>
   const out: EdgarFiling[] = [];
 
   for (const f of data.filings) {
+    if (out.length >= limit) break;
     if (!NT_FORMS.has(f.form)) continue;
     if (f.filingDate < cutoff) continue;
 

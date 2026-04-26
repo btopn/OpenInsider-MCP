@@ -97,6 +97,30 @@ describe("recentSecFilings", () => {
     const result = await recentSecFilings({ ticker: "UNKNOWN" });
     expect(result).toEqual([]);
   });
+
+  it("respects limit when set lower than available filings", async () => {
+    vi.mocked(getRecentFilings).mockResolvedValue(
+      makeRecentFilings([
+        { form: "8-K", filingDate: recentDate(1) },
+        { form: "8-K", filingDate: recentDate(2) },
+        { form: "8-K", filingDate: recentDate(3) },
+        { form: "8-K", filingDate: recentDate(4) },
+      ]),
+    );
+    const result = await recentSecFilings({ ticker: "AAPL", daysBack: 365, limit: 2 });
+    expect(result.length).toBe(2);
+  });
+
+  it("returns all available when limit > available (no padding)", async () => {
+    vi.mocked(getRecentFilings).mockResolvedValue(
+      makeRecentFilings([
+        { form: "8-K", filingDate: recentDate(1) },
+        { form: "8-K", filingDate: recentDate(2) },
+      ]),
+    );
+    const result = await recentSecFilings({ ticker: "AAPL", daysBack: 365, limit: 1000 });
+    expect(result.length).toBe(2);
+  });
 });
 
 describe("lateFilings", () => {

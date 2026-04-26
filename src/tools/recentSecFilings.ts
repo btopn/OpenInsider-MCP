@@ -5,10 +5,12 @@ export interface RecentSecFilingsArgs {
   ticker: string;
   daysBack?: number;
   itemCodes?: string[];
+  limit?: number;
 }
 
 export async function recentSecFilings(args: RecentSecFilingsArgs): Promise<EdgarFiling[]> {
   const daysBack = args.daysBack ?? 30;
+  const limit = args.limit ?? 50;
   const data = await getRecentFilings(args.ticker);
   if (!data) return [];
 
@@ -17,6 +19,7 @@ export async function recentSecFilings(args: RecentSecFilingsArgs): Promise<Edga
 
   const out: EdgarFiling[] = [];
   for (const f of data.filings) {
+    if (out.length >= limit) break;
     if (f.form !== "8-K" && f.form !== "8-K/A") continue;
     if (f.filingDate < cutoff) continue;
     if (itemFilter && itemFilter.length > 0) {

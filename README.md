@@ -426,6 +426,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 - **S-3 vs 424B5.** S-3 = the shelf authorization itself (lower immediate impact); 424B5 = the actual sale off that shelf (higher impact, often −3% announcement reaction per Loughran-Ritter). Small-cap biotech S-3 takedowns are frequently pre-PDUFA capital raises — interpret in context.
 - **ETF FTDs are largely operational.** Authorized-participant create/redeem flows generate failures that aren't directional. Post-T+1 settlement (May 2024), aggregate FTD volumes have decreased materially.
 - **Reg SHO threshold-list inclusion** = >10K shares AND >0.5% of TSO failed for 5 consecutive settlement days. Stratmann-Welborn (2016) document negative drift on inclusion.
+- **EDGAR tools cap at `limit: 50` filings by default.** `recent_sec_filings`, `late_filings`, `activist_filings`, and `dilution_filings` each accept a `limit` arg. Body-fetching tools (`late_filings` / `activist_filings` / `dilution_filings`) fetch one filing body per result — banks and other very-active 424B-prospectus filers can have hundreds of dilution filings per year and would exceed the MCP client's request timeout if all bodies were fetched. If you set `limit` higher than what's available, the tool just returns what's there (no padding, no error).
 
 ## Develop
 
