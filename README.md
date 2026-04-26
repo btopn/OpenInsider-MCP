@@ -5,19 +5,35 @@
 [![CI](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server that exposes 15 free-data investment-research signals to Claude — Form 4 insider trades, SEC corporate-event filings, and FINRA / SEC short data. Drop it into your Claude config and Claude can query these signals directly during long research sessions, without burning context on web browsing.
+An [MCP](https://modelcontextprotocol.io) server that exposes 15 free-data investment-research signals to any MCP-compatible LLM client — Form 4 insider trades, SEC corporate-event filings, and FINRA / SEC short data. Drop it into your MCP client (Cursor, Claude Desktop, VS Code, Claude Code, Codex, etc.) and your LLM can query these signals directly during long research sessions, without burning context on web browsing.
 
 The server exposes 15 tools across three free public data sources: **OpenInsider** (Form 4 insider trades), **SEC EDGAR** (8-K material events, late-filing notices, 13D activist filings, S-3 / 424B5 dilution), and **FINRA / SEC** (short interest, daily short volume, failures-to-deliver).
 
 The server is positioned as a pure data layer: no scoring, no compositing, no editorialization. Each tool returns clean, well-typed observations with citations and gotchas baked into the tool descriptions. The orchestrator LLM decides what is significant.
 
-**What it won't do:** recommend buys / sells, combine signals into a score, run scheduled jobs, or persist anything between sessions. The MCP gives Claude raw observations; you and Claude reason from there.
+**What it won't do:** recommend buys / sells, combine signals into a score, run scheduled jobs, or persist anything between sessions. The MCP gives your LLM raw observations; you and the LLM reason from there.
 
 > Be polite. This scrapes a free public site and uses public SEC / FINRA endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches per-source: 5min for OpenInsider, 5min for SEC EDGAR submissions, 24h for SEC filing bodies and FINRA bi-monthly files, 6h for daily files. Repeated queries in a research session don't re-fetch.
 
 ## Install
 
-Add to your Claude Desktop / Claude Code config:
+OpenInsider MCP is a stdio server distributed on npm — pick your client below.
+
+[![Install in Cursor](https://img.shields.io/badge/Install-Cursor-000?logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=openinsider&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIm9wZW5pbnNpZGVyLW1jcCJdfQ%3D%3D)
+[![Install in VS Code](https://img.shields.io/badge/Install-VS%20Code-007ACC?logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=openinsider&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22openinsider-mcp%22%5D%7D)
+
+<details>
+<summary><b>Claude Code (CLI)</b></summary>
+
+```sh
+claude mcp add openinsider -- npx -y openinsider-mcp
+```
+</details>
+
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
@@ -30,13 +46,49 @@ Add to your Claude Desktop / Claude Code config:
 }
 ```
 
+Restart Claude Desktop after saving.
+</details>
+
+<details>
+<summary><b>Codex CLI (OpenAI)</b></summary>
+
+```sh
+codex mcp add openinsider -- npx -y openinsider-mcp
+```
+
+Or edit `~/.codex/config.toml` directly:
+
+```toml
+[mcp_servers.openinsider]
+command = "npx"
+args = ["-y", "openinsider-mcp"]
+```
+</details>
+
+<details>
+<summary><b>Other MCP clients (Windsurf, Cline, Continue, Zed, …)</b></summary>
+
+Most clients share the same generic stdio config — paste this into your client's MCP config (path varies by client; check their docs):
+
+```json
+{
+  "mcpServers": {
+    "openinsider": {
+      "command": "npx",
+      "args": ["-y", "openinsider-mcp"]
+    }
+  }
+}
+```
+</details>
+
 That's it — `npx` fetches and runs the server on demand.
 
-**Quick start.** Once installed, ask Claude something like *"What's recent insider activity at NVDA?"* — Claude calls `search_by_ticker` and returns the last 90 days of Form 4 filings. Follow up with *"Why did Mark Stevens sell on March 20?"* and Claude pulls the relevant 8-K via `recent_sec_filings`. The in-memory cache makes follow-ups instant.
+**Quick start.** Once installed, ask your LLM something like *"What's recent insider activity at NVDA?"* — it calls `search_by_ticker` and returns the last 90 days of Form 4 filings. Follow up with *"Why did Mark Stevens sell on March 20?"* and your LLM pulls the relevant 8-K via `recent_sec_filings`. The in-memory cache makes follow-ups instant.
 
 ## How to talk to it
 
-You don't call these tools directly — Claude does, based on what you ask. Representative prompts:
+You don't call these tools directly — your LLM does, based on what you ask. Representative prompts:
 
 **Single-source:**
 - *"What's recent insider activity at NVDA?"* → `search_by_ticker`
@@ -46,7 +98,7 @@ You don't call these tools directly — Claude does, based on what you ask. Repr
 - *"How heavily is GME shorted? Is short interest rising?"* → `short_interest` (with delta and `pctOfFloat`)
 - *"Is shorting picking up on TICKER lately?"* → `daily_short_volume` (daily flow, not standing position)
 
-**Multi-tool** (Claude composes these automatically):
+**Multi-tool** (the LLM composes these automatically):
 - *"Is TICKER a short squeeze setup?"* → `short_interest` + `failures_to_deliver` + `search_by_ticker`
 - *"Why did TICKER drop today?"* → `recent_sec_filings` + `dilution_filings` + `search_by_ticker`
 
@@ -309,7 +361,7 @@ When filtering for "real" buying or selling activity, prefer `P` and unqualified
 1. **Search SEC EDGAR**: <https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=4>. Type the person's name, copy the 10-digit CIK from the result.
 2. **Click through OpenInsider**: any name in `latest_trades` or `cluster_buys` results includes `insiderCik` directly. Pull a few trades, grab the CIK, then call `search_by_insider`.
 
-In practice, when you ask Claude something like *"Has Tim Cook sold any AAPL recently?"*, Claude will look up the CIK on the web and then call `search_by_insider` itself — you don't need to do this manually.
+In practice, when you ask your LLM something like *"Has Tim Cook sold any AAPL recently?"*, it will look up the CIK on the web and then call `search_by_insider` itself — you don't need to do this manually.
 
 ## EdgarFiling object
 
@@ -415,7 +467,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 - **The `value` field is signed.** Negative for sales, positive for buys. When summing portfolios, this gives you net flow for free.
 - **Cluster buys page returns `industry` and `insiderCount`.** These don't appear in the standard `Trade` shape — they're optional fields specific to that tool.
 - **`top_sells` is mostly noise.** For real sell-side signal, use `screen` with `transactionTypes: ["S"]` plus role filters (e.g., `isCeo: true`) and a dollar threshold.
-- **Cache is per-process and per-URL.** Repeat queries in the same Claude session are instant. Restart the server (close Claude) to bust it, or wait for the per-source TTL.
+- **Cache is per-process and per-URL.** Repeat queries in the same MCP client session are instant. Restart the server (close your MCP client) to bust it, or wait for the per-source TTL.
 - **Tool returns empty?** Widen `daysBack`, confirm the ticker exists in SEC EDGAR (some OTC names don't), or check timing — FINRA bi-monthly files lag ~7 business days after settlement, so the most recent period may not be published yet.
 - **`short_interest` is bi-monthly with a publication lag.** FINRA settles on the 15th + last business day of each month and publishes ~7 business days later. The most recent snapshot may lag spot price by 1–2 weeks.
 - **`daily_short_volume` ≠ `short_interest`.** The first is daily *flow* (shares sold short that day, summed across CNMS/FNRA/FNYX/FNQC venues); the second is a standing *position* snapshot. Numbers are not directly comparable — they measure different things.
