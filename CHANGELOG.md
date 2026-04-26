@@ -38,6 +38,7 @@ Seven new ticker-scoped MCP tools across two new free public data sources, takin
 
 ### Fixed
 
+- **`pctOfFloat` now falls back to `us-gaap:CommonStockSharesOutstanding`** when the cover-page `dei:EntityCommonStockSharesOutstanding` tag isn't filed. Discovered via APPN, which doesn't file the dei tag at all (404) but reports under us-gaap with 74M shares as of 2025-12-31. Fix in `src/edgar/companyFacts.ts` tries dei first then us-gaap; null only when both miss.
 - **NYSE threshold-list URL** in `buildThresholdUrls` now passes ISO `YYYY-MM-DD` (NYSE's API rejected `YYYYMMDD` with HTTP 400 "Type mismatch error: Expected type LocalDate"). Nasdaq still uses `YYYYMMDD`.
 - **FINRA SI URL pattern** updated to verified `cdn.finra.org/equity/otcmarket/biweekly/shrt{YYYYMMDD}.csv` with current camelCase column names (`symbolCode`, `currentShortPositionQuantity`, etc).
 - **SEC FTD ZIP handling** — files ship as `cnsfails{YYYYMM}{a|b}.zip` rather than text; added `adm-zip` dependency and binary fetch path.
