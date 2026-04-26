@@ -317,7 +317,7 @@ Use when:
 - Researching squeeze setups (high SI + low float + threshold listing) or contrarian entries
 - Cross-referencing with insider buying — Wang-Lai (2023) found insider-buy + SI-spike combo predictive
 
-Important: for daily short FLOW (not standing position), use \`daily_short_volume\` instead — different measurements.`,
+Important: for daily short FLOW (not standing position), use \`daily_short_volume\` instead — different measurements. pctOfFloat is null for tickers without SEC XBRL filings (rare for major US equities; common for foreign issuers, ADRs, and small OTC names).`,
   {
     ticker: z.string().describe("Stock ticker, e.g. 'AAPL'"),
     periodsBack: z

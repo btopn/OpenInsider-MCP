@@ -30,9 +30,13 @@ export interface SourceConfig {
   defaultAccept: string;
   /** Minimum ms between requests for this source (rate pacing). 0 = no pacing. */
   minIntervalMs?: number;
+  /** Per-request timeout in ms. Default 30s. */
+  timeoutMs?: number;
   /** Statuses resolved to null. Callers can override per-call via `nullStatuses`. */
   defaultNullStatuses?: number[];
 }
+
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 class TransientError extends Error {}
 
@@ -57,9 +61,20 @@ async function doFetch(
 ): Promise<string | ArrayBuffer | null> {
   await paceSlot(config.name, config.minIntervalMs ?? 0);
   const accept = options.accept ?? config.defaultAccept;
-  const res = await fetch(url, {
-    headers: { "User-Agent": config.userAgent, Accept: accept },
-  });
+  const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "User-Agent": config.userAgent, Accept: accept },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new Error(`${config.name} timed out after ${timeoutMs}ms for ${url}`);
+    }
+    throw err;
+  }
 
   if (res.status >= 500) {
     throw new TransientError(`${config.name} returned ${res.status} for ${url}`);
@@ -69,7 +84,12 @@ async function doFetch(
   if (nullStatuses.includes(res.status)) return null;
 
   if (!res.ok) {
-    throw new Error(`${config.name} returned ${res.status} for ${url}`);
+    let msg = `${config.name} returned ${res.status} for ${url}`;
+    if (res.status === 403 && config.name === "SEC EDGAR") {
+      msg +=
+        ` — SEC's bot detection may not be accepting this User-Agent. Set OPENINSIDER_MCP_UA="Your Name your-email@domain" to override.`;
+    }
+    throw new Error(msg);
   }
 
   return asBinary ? await res.arrayBuffer() : await res.text();
