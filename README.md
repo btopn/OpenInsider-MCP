@@ -13,7 +13,7 @@ The server is positioned as a pure data layer: no scoring, no compositing, no ed
 
 **v0.2.0 (7 new tools)** — SEC EDGAR (8-K material events, NT-10K/Q late filings, 13D activist filings, S-3 / 424B5 dilution) plus FINRA / SEC short data (bi-monthly short interest with delta, daily Reg SHO short volume, failures-to-deliver + threshold list).
 
-> Be polite. This scrapes a free public site. The server identifies itself with a `User-Agent` and keeps a 5-minute in-memory cache so repeated queries in a research session don't re-fetch.
+> Be polite. This scrapes a free public site and uses public SEC / FINRA endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches per-source: 5min for OpenInsider, 5min for SEC EDGAR submissions, 24h for SEC filing bodies and FINRA bi-monthly files, 6h for daily files. Repeated queries in a research session don't re-fetch.
 
 ## Install
 
@@ -36,17 +36,55 @@ That's it — `npx` fetches and runs the server on demand.
 
 You don't call these tools directly — Claude does, based on what you ask. Some prompts that exercise the server well:
 
+**Insider trading (OpenInsider):**
 - *"What's recent insider activity at NVDA?"* → `search_by_ticker`
 - *"Are there any notable cluster buys this week?"* → `cluster_buys`
 - *"Show me CEO purchases over $500k in the last 30 days."* → `screen` with role + value filters
 - *"Has Jensen Huang sold any NVDA recently?"* → web-lookup CIK, then `search_by_insider`
-- *"What are the biggest insider sales this quarter, and which companies have multiple insiders selling?"* → `top_sells` + `cluster_buys` (Claude composes them)
+- *"What are the biggest insider sales this quarter?"* → `top_sells` (or `cluster_buys` for higher signal)
 
-The more specific the question, the better the tool selection. For long research tasks (e.g., "research these 5 small-cap energy names and flag any with concerning insider activity"), Claude will fan out across multiple tools and the in-memory cache keeps repeat queries instant.
+**Corporate events (SEC EDGAR):**
+- *"What happened with NVDA recently?"* → `recent_sec_filings` (8-K item codes)
+- *"Did AAPL change officers?"* → `recent_sec_filings` with `itemCodes=["5.02"]`
+- *"Has TICKER had any restatements?"* → `recent_sec_filings` with `itemCodes=["4.02"]`
+- *"Is anything weird going on with TICKER's accounting?"* → `late_filings` (NT-10K/Q with accounting reasons)
+- *"Is anyone activist on GME?"* → `activist_filings` (13D filings)
+- *"Is BIOX raising money?"* → `dilution_filings` (S-3 / 424B5 takedowns)
+
+**Short interest & delivery (FINRA / SEC):**
+- *"How heavily is GME shorted? Is short interest rising?"* → `short_interest` (with delta and `pctOfFloat`)
+- *"Is shorting picking up on TICKER lately?"* → `daily_short_volume` (daily flow, not standing position)
+- *"Is TICKER on the threshold list?"* → `failures_to_deliver`
+
+**Multi-tool composition** (Claude does this automatically):
+- *"Is TICKER a short squeeze setup?"* → `short_interest` + `failures_to_deliver` + `search_by_ticker` (insider buying alongside heavy shorting is the strongest combo)
+- *"Why did TICKER drop today?"* → `recent_sec_filings` + `dilution_filings` + `search_by_ticker` (corporate event + dilution + insider context)
+- *"Research these 5 small-cap names and flag anything concerning"* → fan-out across all 15 tools, in-memory cache keeps repeats instant
+
+The more specific the question, the better the tool selection.
+
+## Quick reference: which tool answers what?
+
+| Question | Tool | Output type |
+|---|---|---|
+| Insider trades for one company | `search_by_ticker` | `Trade[]` |
+| One insider's trades across companies | `search_by_insider` | `Trade[]` |
+| Market-wide insider firehose | `latest_trades` | `Trade[]` |
+| Biggest insider buys/sells per period | `top_buys`, `top_sells` | `Trade[]` |
+| Multiple insiders buying same name | `cluster_buys` | `Trade[]` (with `industry`, `insiderCount`) |
+| Officer buys ≥$25k | `officer_buys` | `Trade[]` |
+| Custom multi-filter screener | `screen` | `Trade[]` |
+| Recent 8-K material events | `recent_sec_filings` | `EdgarFiling[]` |
+| NT-10K / NT-10Q late-filing notices | `late_filings` | `EdgarFiling[]` |
+| Schedule 13D activist filings | `activist_filings` | `EdgarFiling[]` |
+| S-3 / 424B5 dilution / shelf takedowns | `dilution_filings` | `EdgarFiling[]` |
+| Bi-monthly short interest snapshot + delta + % of shares | `short_interest` | `ShortSnapshot[]` |
+| Daily short-sale flow (different from above!) | `daily_short_volume` | `{date, shortVolume, totalVolume, shortRatio}[]` |
+| SEC failures-to-deliver + Reg SHO threshold list | `failures_to_deliver` | `{date, ftdShares, ftdValue, onThresholdList}[]` |
 
 ## Tool reference
 
-All tools return `{ count, trades: Trade[] }`. The `Trade` shape is documented in [Trade object](#trade-object) below.
+Each tool returns JSON with a `count` and a typed payload. v0.1.0 OpenInsider tools use `trades`; v0.2.0 EDGAR tools use `filings`; FINRA tools use `snapshots` or `rows` depending on cadence. See [Output types](#trade-object) below for the exact field shapes.
 
 ### `search_by_ticker`
 
@@ -249,6 +287,23 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
 }
 ```
 
+**Sample output** — `recent_sec_filings ticker=NVDA daysBack=180`:
+
+```json
+[
+  {
+    "ticker": "NVDA",
+    "cik": "0001045810",
+    "formType": "8-K",
+    "filingDate": "2026-03-06",
+    "acceptanceDateTime": "2026-03-06T16:11:25.000Z",
+    "accessionNumber": "0001045810-26-000024",
+    "primaryDocUrl": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000024/nvda-20260302.htm",
+    "itemCodes": ["5.02", "9.01"]
+  }
+]
+```
+
 ## ShortSnapshot object
 
 `short_interest` returns `{ count, snapshots: ShortSnapshot[] }`:
@@ -268,6 +323,31 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
 ```
 
 `daily_short_volume` returns `{ count, rows: { date, shortVolume, totalVolume, shortRatio }[] }`. `failures_to_deliver` returns `{ count, rows: { date, ftdShares, ftdValue, onThresholdList }[] }`.
+
+**Sample output** — `short_interest ticker=NVDA periodsBack=2`:
+
+```json
+[
+  {
+    "ticker": "NVDA",
+    "reportDate": "2026-03-31",
+    "sharesShort": 280872588,
+    "pctOfFloat": 0.01156,
+    "daysToCover": 1.51,
+    "delta": {
+      "sharesShortDelta": 32531716,
+      "pctDelta": 0.131
+    }
+  },
+  {
+    "ticker": "NVDA",
+    "reportDate": "2026-02-27",
+    "sharesShort": 248340872,
+    "pctOfFloat": 0.01022,
+    "daysToCover": 1.31
+  }
+]
+```
 
 ## Trade object
 
@@ -325,7 +405,19 @@ In practice, when you ask Claude something like *"Has Tim Cook sold any AAPL rec
 - **The `value` field is signed.** Negative for sales, positive for buys. When summing portfolios, this gives you net flow for free.
 - **Cluster buys page returns `industry` and `insiderCount`.** These don't appear in the standard `Trade` shape — they're optional fields specific to that tool.
 - **`top_sells` is mostly noise.** For real sell-side signal, use `screen` with `transactionTypes: ["S"]` plus role filters (e.g., `isCeo: true`) and a dollar threshold.
-- **Cache is per-process and per-URL.** Repeat queries in the same Claude session are instant. Restart the server (close Claude) to bust it, or wait 5 minutes.
+- **Cache is per-process and per-URL.** Repeat queries in the same Claude session are instant. Restart the server (close Claude) to bust it, or wait for the per-source TTL.
+
+### v0.2.0 tool gotchas
+
+- **`short_interest` is bi-monthly with a publication lag.** FINRA settles on the 15th + last business day of each month and publishes ~7 business days later. The most recent snapshot may lag spot price by 1–2 weeks.
+- **`daily_short_volume` ≠ `short_interest`.** The first is daily *flow* (shares sold short that day, summed across CNMS/FNRA/FNYX/FNQC venues); the second is a standing *position* snapshot. Numbers are not directly comparable — they measure different things.
+- **`pctOfFloat` is `sharesShort / sharesOutstanding` from SEC XBRL.** Commonly conflated with "public float" in retail data feeds; true public float requires restricted-share data not available via free SEC data. Returns `null` when the company doesn't file XBRL or uses a non-standard tag.
+- **8-K item codes are populated from the SEC submissions API metadata** (no body fetch needed). The most useful items: `1.02` contract terminated, `2.02` earnings, `2.06` impairment, `4.01` auditor changed, `4.02` non-reliance / restatement, `5.02` officer/director departure or appointment.
+- **NT-10K/Q reason classification is a keyword heuristic.** "Accounting" reasons (restatement, audit, internal control, material weakness) are the strongest bearish variant per Bartov-DeFond-Konchitchki (2017). "Corporate" reasons (CFO transition, ERP migration) are common and weaker.
+- **Activist 13D filings include amendments by default.** Pass `includeAmendments: false` to get only the initial filing — that's the highest-impact event-day per the Brav-Jiang-Partnoy-Thomas literature.
+- **S-3 vs 424B5.** S-3 = the shelf authorization itself (lower immediate impact); 424B5 = the actual sale off that shelf (higher impact, often −3% announcement reaction per Loughran-Ritter). Small-cap biotech S-3 takedowns are frequently pre-PDUFA capital raises — interpret in context.
+- **ETF FTDs are largely operational.** Authorized-participant create/redeem flows generate failures that aren't directional. Post-T+1 settlement (May 2024), aggregate FTD volumes have decreased materially.
+- **Reg SHO threshold-list inclusion** = >10K shares AND >0.5% of TSO failed for 5 consecutive settlement days. Stratmann-Welborn (2016) document negative drift on inclusion.
 
 ## Develop
 
