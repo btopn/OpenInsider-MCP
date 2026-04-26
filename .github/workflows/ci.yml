@@ -7,7 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: "0 12 * * 1"
+    # Daily at 12:00 UTC. Catches upstream drift (Yahoo / OpenInsider HTML
+    # restructuring, EDGAR submission API changes, FINRA URL scheme drift)
+    # within ~24h of the change rather than waiting for the next PR.
+    - cron: "0 12 * * *"
 
 # Cancel a previous in-progress run when a new commit lands on the same ref.
 # Prevents redundant runs on rapid pushes (typo-fixes etc).
@@ -34,6 +37,12 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     if: github.event_name != 'push'
+    permissions:
+      contents: read
+      # Allow the auto-issue-on-scheduled-failure step below to file an issue
+      # via the built-in GITHUB_TOKEN. Default permissions are read-only on
+      # newer Actions setups, so issues:write must be opted into explicitly.
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,11 +51,40 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      # Tier 2: live smoke tests — confirm OpenInsider, SEC EDGAR, and FINRA
-      # endpoints + URL formats still work. Vitest auto-includes all
-      # tests/smoke.*.test.ts when SMOKE=1.
+      # Tier 2: live smoke tests — confirm Yahoo Finance, OpenInsider, SEC
+      # EDGAR, and FINRA endpoints + URL formats still work. Vitest auto-
+      # includes all tests/smoke.*.test.ts when SMOKE=1.
       - run: SMOKE=1 npx vitest run
       # Tier 3: drive every registered MCP tool through the real JSON-RPC
       # stdio transport via the official @modelcontextprotocol/sdk Client.
       # Same path Claude Desktop uses. Exits 1 if any tool call fails.
       - run: node scripts/mcp-driver.mjs NVDA
+      # If the daily scheduled smoke fails, file a GitHub issue so the repo
+      # owner gets a mobile push notification (via GitHub's app). Only fires
+      # on schedule events — PR failures already surface in the PR check
+      # status, so they don't need an extra issue. Uses the built-in
+      # GITHUB_TOKEN; no PAT required.
+      - name: File issue on scheduled smoke failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BODY: |
+            Scheduled smoke run detected a regression. This typically means an upstream data source (Yahoo Finance, OpenInsider, SEC EDGAR, or FINRA) changed its response shape, was rate-limiting, or had transient downtime.
+
+            **Run logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Check the workflow output to identify the failing tier:
+            - Live smoke tests — vitest output names the source whose drift detector tripped
+            - MCP driver — tool-call output names the specific failing tool
+
+            Common fixes:
+            - **Yahoo shape change:** run `node scripts/capture-yahoo-fixtures.mjs` locally to refresh the fixtures, then update `src/yahoo/parseQuote.ts` if a field path changed.
+            - **OpenInsider HTML change:** refresh the affected fixture under `tests/fixtures/` and update `src/scraper/parseTable.ts::readColumnMap` if a header label changed.
+            - **EDGAR / FINRA URL drift:** check the relevant source's `fetch.ts` for the URL pattern.
+            - **Transient rate limit or outage:** re-run the workflow.
+        run: |
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Scheduled smoke tests failed ($(date -u +%Y-%m-%d))" \
+            --body "$BODY"

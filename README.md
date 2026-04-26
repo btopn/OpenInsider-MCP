@@ -5,15 +5,15 @@
 [![CI](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server that exposes 15 free-data investment-research signals to any MCP-compatible LLM client — Form 4 insider trades, SEC corporate-event filings, and FINRA / SEC short data. Drop it into your MCP client (Cursor, Claude Desktop, VS Code, Claude Code, Codex, etc.) and your LLM can query these signals directly during long research sessions, without burning context on web browsing.
+An [MCP](https://modelcontextprotocol.io) server that exposes 16 free-data investment-research signals to any MCP-compatible LLM client — Form 4 insider trades, SEC corporate-event filings, FINRA / SEC short data, and live Yahoo Finance quotes. Drop it into your MCP client (Cursor, Claude Desktop, VS Code, Claude Code, Codex, etc.) and your LLM can query these signals directly during long research sessions, without burning context on web browsing.
 
-The server exposes 15 tools across three free public data sources: **OpenInsider** (Form 4 insider trades), **SEC EDGAR** (8-K material events, late-filing notices, 13D activist filings, S-3 / 424B5 dilution), and **FINRA / SEC** (short interest, daily short volume, failures-to-deliver).
+The server exposes 16 tools across four free public data sources: **OpenInsider** (Form 4 insider trades), **SEC EDGAR** (8-K material events, late-filing notices, 13D activist filings, S-3 / 424B5 dilution), **FINRA / SEC** (short interest, daily short volume, failures-to-deliver), and **Yahoo Finance** (live quote: price, valuation, dividend, earnings calendar).
 
 The server is positioned as a pure data layer: no scoring, no compositing, no editorialization. Each tool returns clean, well-typed observations with citations and gotchas baked into the tool descriptions. The orchestrator LLM decides what is significant.
 
 **What it won't do:** recommend buys / sells, combine signals into a score, run scheduled jobs, or persist anything between sessions. The MCP gives your LLM raw observations; you and the LLM reason from there.
 
-> Be polite. This scrapes a free public site and uses public SEC / FINRA endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches per-source: 5min for OpenInsider, 5min for SEC EDGAR submissions, 24h for SEC filing bodies and FINRA bi-monthly files, 6h for daily files. Repeated queries in a research session don't re-fetch.
+> Be polite. This scrapes a free public site and uses public SEC / FINRA / Yahoo endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches per-source: 5min for OpenInsider, 5min for SEC EDGAR submissions, 24h for SEC filing bodies and FINRA bi-monthly files, 6h for daily files, 60s for Yahoo Finance quotes. Repeated queries in a research session don't re-fetch.
 
 ## Install
 
@@ -97,10 +97,12 @@ You don't call these tools directly — your LLM does, based on what you ask. Re
 - *"Is BIOX raising money?"* → `dilution_filings` (S-3 / 424B5 takedowns)
 - *"How heavily is GME shorted? Is short interest rising?"* → `short_interest` (with delta and `pctOfFloat`)
 - *"Is shorting picking up on TICKER lately?"* → `daily_short_volume` (daily flow, not standing position)
+- *"What's AAPL trading at right now?"* → `get_quote` (price + valuation + dividend in one call)
 
 **Multi-tool** (the LLM composes these automatically):
 - *"Is TICKER a short squeeze setup?"* → `short_interest` + `failures_to_deliver` + `search_by_ticker`
 - *"Why did TICKER drop today?"* → `recent_sec_filings` + `dilution_filings` + `search_by_ticker`
+- *"How does TICKER's valuation compare to its insider activity?"* → `get_quote` (P/E, market cap) + `search_by_ticker` (recent insider buys/sells)
 
 The more specific the question, the better the tool selection. See the [Quick reference](#quick-reference-which-tool-answers-what) table below for the full mapping.
 
@@ -122,10 +124,11 @@ The more specific the question, the better the tool selection. See the [Quick re
 | Bi-monthly short interest snapshot + delta + % of shares | `short_interest` | `ShortSnapshot[]` |
 | Daily short-sale flow (different from above!) | `daily_short_volume` | `{date, shortVolume, totalVolume, shortRatio}[]` |
 | SEC failures-to-deliver + Reg SHO threshold list | `failures_to_deliver` | `{date, ftdShares, ftdValue, onThresholdList}[]` |
+| Live stock quote (price, valuation, dividend, earnings) | `get_quote` | `Quote` |
 
 ## Tool reference
 
-Each tool returns JSON with a `count` and a typed payload. OpenInsider tools return `trades` (`Trade[]`); SEC EDGAR tools return `filings` (`EdgarFiling[]`); FINRA / SEC short-data tools return `snapshots` (`ShortSnapshot[]`) or `rows` depending on cadence. See [output types](#trade-object) below for the exact field shapes.
+Each tool returns JSON with a typed payload. OpenInsider tools return `{ count, trades: Trade[] }`; SEC EDGAR tools return `{ count, filings: EdgarFiling[] }`; FINRA / SEC short-data tools return `{ count, snapshots: ShortSnapshot[] }` or `{ count, rows: ... }` depending on cadence; Yahoo Finance returns a single `Quote` object (no array, no `count`). See [output types](#trade-object) below for the exact field shapes.
 
 ### OpenInsider — Form 4 insider trades
 
@@ -308,6 +311,25 @@ SEC failures-to-deliver per bi-monthly period plus current Reg SHO threshold-lis
 
 > ETF FTDs are largely market-maker operational; post-T+1 settlement (May 2024) aggregate FTD volumes have decreased. Interpret with caution.
 
+### Yahoo Finance — live stock quote
+
+Single tool, single round-trip per ticker. Sourced by scraping the structured JSON Yahoo embeds in its public HTML quote page (the same page your browser loads at `finance.yahoo.com/quote/<TICKER>/`). No api keys, no auth, no third-party brokers — direct fetch from your machine to Yahoo's web frontend.
+
+#### `get_quote`
+
+Live stock quote for a ticker — price, previous close, 52-week range, today's volume + 3-month average volume, market cap, beta, trailing/forward P/E, dividend yield, ex-dividend date, next earnings date, currency, exchange, ISO timestamp.
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `ticker` | string | yes | Stock ticker, e.g. `"AAPL"`, `"BRK.B"` (normalized to `"BRK-B"`). Case-insensitive. Must match `/^[A-Z0-9.\-]{1,10}$/` after normalization; tickers with other characters are rejected. |
+
+**Example call:**
+```json
+{ "ticker": "AAPL" }
+```
+
+The tool throws a clean `ticker not found` error for tickers that don't resolve, and a generic `Yahoo Finance: error response for <ticker>` when Yahoo returns an error (Yahoo's verbatim error text is intentionally not passed through, as a prompt-injection defense in an LLM tool surface).
+
 ## Trade object
 
 OpenInsider tools return `{ count, trades: Trade[] }`. Key fields: `filingDate` / `tradeDate` (ISO), `ticker`, `insiderName`, `insiderCik`, `title`, `transactionType` (SEC code + label like `"P - Purchase"`), `price`, `quantity` (signed), `value` (signed), `formUrl`. `cluster_buys` adds `industry` + `insiderCount`.
@@ -459,6 +481,43 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 ]
 ```
 
+## Quote object
+
+`get_quote` returns a single `Quote` object directly (no array, no `count` wrapper). Always populated: identity (`ticker`, `currency`, `timestamp`), `price`, `previousClose`, 52-week range, `volume`. Nullable in cases where the metric doesn't apply: `exchange` (null if Yahoo returned an unexpected exchange code), `averageVolume` (null for illiquid issues without a 3-month average), `marketCap` / `beta` / `trailingPE` / `forwardPE` (null for ETFs and instruments where N/A), `dividendYield` / `exDividendDate` (null for non-dividend payers), `earningsDate` (null when no upcoming consensus).
+
+<details>
+<summary>Full Quote type definition</summary>
+
+```ts
+{
+  ticker:           string;
+  exchange:         string | null;
+  currency:         string;            // ISO-4217, e.g. "USD" — local for foreign tickers
+  timestamp:        string;            // ISO 8601 of regularMarketTime
+
+  price:            number;
+  previousClose:    number;
+
+  fiftyTwoWeekHigh: number;
+  fiftyTwoWeekLow:  number;
+
+  volume:           number;            // today's regular-session volume (shares)
+  averageVolume:    number | null;     // 3-month average; null for illiquid issues
+
+  marketCap:        number | null;
+  beta:             number | null;     // 5y monthly
+  trailingPE:       number | null;
+  forwardPE:        number | null;
+
+  dividendYield:    number | null;     // decimal (0.0042 = 0.42%); null for non-payers
+  exDividendDate:   string | null;     // ISO YYYY-MM-DD; null for non-payers
+
+  earningsDate:     string | null;     // ISO YYYY-MM-DD; null when no upcoming consensus
+}
+```
+
+</details>
+
 ## Tips & gotchas
 
 - **`daysBack` filters by *filing* date, not *trade* date.** Insiders have up to 2 business days to file (sometimes longer when they file late). For "what trades happened in the last week," use `daysBack: 14` to be safe.
@@ -479,6 +538,10 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 - **ETF FTDs are largely operational.** Authorized-participant create/redeem flows generate failures that aren't directional. Post-T+1 settlement (May 2024), aggregate FTD volumes have decreased materially.
 - **Reg SHO threshold-list inclusion** = >10K shares AND >0.5% of TSO failed for 5 consecutive settlement days. Stratmann-Welborn (2016) document negative drift on inclusion.
 - **EDGAR tools cap at `limit: 50` filings by default.** `recent_sec_filings`, `late_filings`, `activist_filings`, and `dilution_filings` each accept a `limit` arg. Body-fetching tools (`late_filings` / `activist_filings` / `dilution_filings`) fetch one filing body per result — banks and other very-active 424B-prospectus filers can have hundreds of dilution filings per year and would exceed the MCP client's request timeout if all bodies were fetched. If you set `limit` higher than what's available, the tool just returns what's there (no padding, no error).
+- **`get_quote` returns `dividendYield` as a decimal, not a percent.** `0.0042` means 0.42%, matching Yahoo's wire format. Multiply by 100 if you want to display it as "0.42%".
+- **ETFs typically have null `trailingPE` / `forwardPE`** — those metrics don't apply to fund structures. Many ETFs still expose `dividendYield`.
+- **`get_quote` `timestamp` is the time of the most recent regular-session price.** On weekends, holidays, and outside market hours it points to the *last trading session*, not "now".
+- **`get_quote` is hardened against prompt injection through the response.** Every string field surfaced to the LLM is validated: `ticker` comes from the validated input (never from Yahoo's response), `exchange` must match `/^[A-Z0-9_-]{1,12}$/` or returns `null`, `currency` must be a 3-letter ISO-4217 code or the call throws, dates are constrained to `YYYY-MM-DD`, and numerics must be finite. Yahoo's own error text is never passed through verbatim. Numeric fields can't carry text instructions; the only strings reachable from a Yahoo response are tightly-bounded short codes.
 
 ## Develop
 

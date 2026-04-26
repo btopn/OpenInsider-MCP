@@ -34,6 +34,8 @@ const INVOCATIONS = [
   ["short_interest", { ticker: TICKER, periodsBack: 4 }],
   ["daily_short_volume", { ticker: TICKER, daysBack: 5 }],
   ["failures_to_deliver", { ticker: TICKER, periodsBack: 2 }],
+  // Yahoo Finance live-quote tool — returns a single Quote object (no count/array wrapper)
+  ["get_quote", { ticker: TICKER }],
 ];
 
 const transport = new StdioClientTransport({
@@ -65,12 +67,20 @@ for (const [name, args] of INVOCATIONS) {
       continue;
     }
     const parsed = JSON.parse(text);
-    const count = parsed.count ?? 0;
-    const payloadKey = Object.keys(parsed).find((k) => k !== "count") ?? "items";
-    console.log(`✓ ${name.padEnd(22)} (${String(elapsed).padStart(5)}ms)  count=${count}`);
-    if (count > 0) {
-      const first = parsed[payloadKey][0];
-      const json = JSON.stringify(first);
+    if (typeof parsed.count === "number") {
+      // List-shaped response: { count, [payloadKey]: items[] }
+      const payloadKey = Object.keys(parsed).find((k) => k !== "count") ?? "items";
+      console.log(`✓ ${name.padEnd(22)} (${String(elapsed).padStart(5)}ms)  count=${parsed.count}`);
+      if (parsed.count > 0) {
+        const first = parsed[payloadKey][0];
+        const json = JSON.stringify(first);
+        const preview = json.length > 240 ? json.slice(0, 240) + " …" : json;
+        console.log(`    sample: ${preview}`);
+      }
+    } else {
+      // Single-object response (e.g. get_quote returns one Quote).
+      console.log(`✓ ${name.padEnd(22)} (${String(elapsed).padStart(5)}ms)  object`);
+      const json = JSON.stringify(parsed);
       const preview = json.length > 240 ? json.slice(0, 240) + " …" : json;
       console.log(`    sample: ${preview}`);
     }

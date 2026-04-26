@@ -18,8 +18,9 @@ import { dilutionFilings } from "./tools/dilutionFilings.js";
 import { shortInterest } from "./tools/shortInterest.js";
 import { dailyShortVolume } from "./tools/dailyShortVolume.js";
 import { failuresToDeliver } from "./tools/failuresToDeliver.js";
+import { quote } from "./tools/quote.js";
 
-const server = new McpServer({ name: "openinsider-mcp", version: "0.2.0" });
+const server = new McpServer({ name: "openinsider-mcp", version: "0.3.0" });
 
 const periodSchema = z.enum(["day", "week", "month", "quarter", "year"]);
 const txFilterSchema = z.enum(["all", "buys", "sells"]);
@@ -32,6 +33,12 @@ function jsonResult<T>(items: T[], key: string = "trades") {
         text: JSON.stringify({ count: items.length, [key]: items }, null, 2),
       },
     ],
+  };
+}
+
+function jsonObject<T>(item: T) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(item, null, 2) }],
   };
 }
 
@@ -412,6 +419,35 @@ Caveats: ETF FTDs are largely market-maker operational (interpret cautiously); p
       return jsonResult(await failuresToDeliver(args), "rows");
     } catch (err) {
       return errorResult(err, "failures_to_deliver");
+    }
+  },
+);
+
+// --- v0.3.0: Yahoo Finance live-quote tool ---
+
+server.tool(
+  "get_quote",
+  `Live stock quote for a ticker, sourced from Yahoo Finance. Returns one Quote object: current price, previous close, 52-week range, regular-session volume + 3-month average volume, market cap, beta, trailing/forward P/E, dividend yield, ex-dividend date, next earnings date, currency, exchange, and ISO timestamp. Cache TTL is 60s.
+
+Use when:
+- User asks "what's TICKER trading at" or "TICKER price"
+- Cross-referencing valuation (P/E, market cap) with insider activity or short interest
+- Checking the next earnings date or current dividend yield
+
+Caveats:
+- dividendYield is a decimal, not a percent (0.0042 = 0.42%) — matches Yahoo's wire format
+- ETFs typically have null trailingPE / forwardPE; many still have a dividendYield
+- Non-dividend payers have null dividendYield / exDividendDate
+- timestamp is the time of the most recent regular-session price; on weekends and holidays it points to the last trading session, not "now"
+- Sourced by scraping the structured JSON Yahoo embeds in its public quote page; throws a clean error if Yahoo's response shape changes or the ticker isn't found.`,
+  {
+    ticker: z.string().describe("Stock ticker, e.g. 'AAPL', 'BRK.B' (normalized to BRK-B)."),
+  },
+  async (args) => {
+    try {
+      return jsonObject(await quote(args));
+    } catch (err) {
+      return errorResult(err, "get_quote");
     }
   },
 );
