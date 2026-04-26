@@ -345,12 +345,31 @@ To exercise the server interactively, use the official MCP inspector:
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-For a one-shot dump of representative output from every tool against a known ticker (useful for verifying a deployment or eyeballing what each tool returns), use the included script:
+For a one-shot dump of representative output from every tool against a known ticker (useful for verifying a deployment or eyeballing what each tool returns):
 
 ```sh
 npm run build
 node scripts/exercise-tools.mjs NVDA   # or any ticker
 ```
+
+For targeted queries against a specific tool (full output, no truncation; pipe through `jq` for date or field filtering):
+
+```sh
+node scripts/run-tool.mjs <tool-name> [key=value ...]
+
+# Examples:
+node scripts/run-tool.mjs search_by_ticker ticker=NVDA daysBack=7 \
+  | jq '.[] | select(.tradeDate == "2026-04-22")'
+
+node scripts/run-tool.mjs daily_short_volume ticker=GME daysBack=10
+
+node scripts/run-tool.mjs recent_sec_filings ticker=AAPL daysBack=730 itemCodes=5.02 \
+  | jq '.[] | {filingDate, primaryDocUrl}'
+
+node scripts/run-tool.mjs short_interest ticker=NVDA periodsBack=6 > nvda_si.json
+```
+
+Status messages go to stderr; tool output goes to stdout.
 
 To identify your deployment to SEC EDGAR with your own contact info (polite practice), set the `OPENINSIDER_MCP_UA` env var:
 
