@@ -1,59 +1,23 @@
-import { cacheGet, cacheSet } from "../cache.js";
+import { fetchHttp, type SourceConfig } from "../http.js";
 
 const BASE_URL = "http://openinsider.com";
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const USER_AGENT = "openinsider-mcp/0.2.0 (+https://github.com/btopn/OpenInsider-MCP)";
+
+const CONFIG: SourceConfig = {
+  name: "OpenInsider",
+  userAgent:
+    process.env.OPENINSIDER_MCP_UA ?? "openinsider-mcp 0.2.0 contact@example.com",
+  defaultTtlMs: 5 * 60 * 1000,
+  defaultAccept: "text/html",
+};
 
 export interface FetchOptions {
   cache?: boolean;
 }
 
 export async function fetchOpenInsider(path: string, options: FetchOptions = {}): Promise<string> {
-  const useCache = options.cache !== false;
   const url = path.startsWith("http") ? path : `${BASE_URL}${path}`;
-
-  if (useCache) {
-    const hit = cacheGet<string>(url);
-    if (hit !== undefined) {
-      return hit;
-    }
-  }
-
-  const html = await fetchWithRetry(url);
-
-  if (useCache) {
-    cacheSet(url, html, CACHE_TTL_MS);
-  }
-
-  return html;
+  // CONFIG has no nullStatuses, so fetchHttp resolves to a string (or throws).
+  return (await fetchHttp(url, CONFIG, options))!;
 }
-
-async function fetchWithRetry(url: string): Promise<string> {
-  try {
-    return await doFetch(url);
-  } catch (err) {
-    if (err instanceof TransientError) {
-      return await doFetch(url);
-    }
-    throw err;
-  }
-}
-
-async function doFetch(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-  });
-
-  if (res.status >= 500) {
-    throw new TransientError(`OpenInsider returned ${res.status} for ${url}`);
-  }
-  if (!res.ok) {
-    throw new Error(`OpenInsider returned ${res.status} for ${url}`);
-  }
-
-  return await res.text();
-}
-
-class TransientError extends Error {}
 
 export { clearCache } from "../cache.js";

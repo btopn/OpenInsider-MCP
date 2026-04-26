@@ -1,22 +1,17 @@
-import { cacheGet, cacheSet } from "../cache.js";
+import { fetchHttp, type SourceConfig } from "../http.js";
 
-// SEC's bot detection requires a User-Agent that includes contact info in the
-// "Name email@domain" form. The slash/parenthesis form returns 403. Override
-// via OPENINSIDER_MCP_UA env var to identify your deployment to SEC; the
-// default works but using your own contact is the polite practice.
-const USER_AGENT =
-  process.env.OPENINSIDER_MCP_UA ?? "openinsider-mcp 0.2.0 contact@example.com";
-const MIN_INTERVAL_MS = 110;
-const DEFAULT_TTL_MS = 5 * 60 * 1000;
-
-let nextSlot = 0;
-
-async function paceSlot(): Promise<void> {
-  const now = Date.now();
-  const wait = Math.max(0, nextSlot - now);
-  nextSlot = Math.max(now, nextSlot) + MIN_INTERVAL_MS;
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-}
+// SEC's bot detection requires a User-Agent in the "Name email@domain" form
+// (the slash/parens form returns 403). Override via OPENINSIDER_MCP_UA env var
+// to identify your deployment to SEC; the default works but using your own
+// contact info is the polite practice.
+const CONFIG: SourceConfig = {
+  name: "SEC EDGAR",
+  userAgent:
+    process.env.OPENINSIDER_MCP_UA ?? "openinsider-mcp 0.2.0 contact@example.com",
+  defaultTtlMs: 5 * 60 * 1000,
+  defaultAccept: "application/json",
+  minIntervalMs: 110, // ~9 req/sec, safely under SEC's documented 10 rps limit
+};
 
 export interface EdgarFetchOptions {
   cache?: boolean;
@@ -25,49 +20,5 @@ export interface EdgarFetchOptions {
 }
 
 export async function fetchEdgar(url: string, options: EdgarFetchOptions = {}): Promise<string> {
-  const useCache = options.cache !== false;
-  const ttl = options.ttlMs ?? DEFAULT_TTL_MS;
-  const accept = options.accept ?? "application/json";
-
-  if (useCache) {
-    const hit = cacheGet<string>(url);
-    if (hit !== undefined) return hit;
-  }
-
-  const text = await fetchWithRetry(url, accept);
-
-  if (useCache) {
-    cacheSet(url, text, ttl);
-  }
-
-  return text;
+  return (await fetchHttp(url, CONFIG, options))!;
 }
-
-async function fetchWithRetry(url: string, accept: string): Promise<string> {
-  try {
-    return await doFetch(url, accept);
-  } catch (err) {
-    if (err instanceof TransientError) {
-      return await doFetch(url, accept);
-    }
-    throw err;
-  }
-}
-
-async function doFetch(url: string, accept: string): Promise<string> {
-  await paceSlot();
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, Accept: accept },
-  });
-
-  if (res.status >= 500) {
-    throw new TransientError(`SEC EDGAR returned ${res.status} for ${url}`);
-  }
-  if (!res.ok) {
-    throw new Error(`SEC EDGAR returned ${res.status} for ${url}`);
-  }
-
-  return await res.text();
-}
-
-class TransientError extends Error {}
