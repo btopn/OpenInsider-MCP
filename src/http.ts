@@ -17,6 +17,8 @@ export interface HttpFetchOptions {
    * source's `defaultNullStatuses`. Used by FINRA where 403 = file missing.
    */
   nullStatuses?: number[];
+  /** Extra headers merged after the source defaults (e.g. Yahoo's Cookie). */
+  headers?: Record<string, string>;
 }
 
 export interface SourceConfig {
@@ -66,7 +68,11 @@ async function doFetch(
   let res: Response;
   try {
     res = await fetch(url, {
-      headers: { "User-Agent": config.userAgent, Accept: accept },
+      headers: {
+        "User-Agent": config.userAgent,
+        Accept: accept,
+        ...(options.headers ?? {}),
+      },
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {

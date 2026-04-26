@@ -67,3 +67,31 @@ export interface ShortSnapshot {
     pctDelta: number;
   };
 }
+
+export interface Quote {
+  ticker:           string;
+  exchange:         string | null;
+  currency:         string;
+  timestamp:        string;          // ISO 8601 of regularMarketTime
+
+  price:            number;
+  previousClose:    number;
+
+  fiftyTwoWeekHigh: number;
+  fiftyTwoWeekLow:  number;
+
+  volume:           number;
+  averageVolume:    number | null;   // 3-month average; null for illiquid issues
+
+  // Null for ETFs and instruments where the metric doesn't apply.
+  marketCap:        number | null;
+  beta:             number | null;
+  trailingPE:       number | null;
+  forwardPE:        number | null;
+
+  // Null for non-dividend-paying stocks.
+  dividendYield:    number | null;   // decimal (0.0042 = 0.42%)
+  exDividendDate:   string | null;   // ISO YYYY-MM-DD
+
+  earningsDate:     string | null;   // ISO YYYY-MM-DD; null when no upcoming consensus
+}

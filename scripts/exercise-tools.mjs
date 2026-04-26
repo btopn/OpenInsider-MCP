@@ -23,6 +23,7 @@ import { dilutionFilings } from "../dist/tools/dilutionFilings.js";
 import { shortInterest } from "../dist/tools/shortInterest.js";
 import { dailyShortVolume } from "../dist/tools/dailyShortVolume.js";
 import { failuresToDeliver } from "../dist/tools/failuresToDeliver.js";
+import { quote } from "../dist/tools/quote.js";
 
 const TICKER = (process.argv[2] ?? "NVDA").toUpperCase();
 const INSIDER_CIK = "1214156"; // Tim Cook
@@ -50,7 +51,7 @@ async function exercise(name, fn) {
   }
 }
 
-console.log(`Exercising all 15 MCP tools. Ticker = ${TICKER}, insiderCik = ${INSIDER_CIK}`);
+console.log(`Exercising all 16 MCP tools. Ticker = ${TICKER}, insiderCik = ${INSIDER_CIK}`);
 
 // --- v0.1.0 OpenInsider tools ---
 await exercise("search_by_ticker", () => searchByTicker({ ticker: TICKER, daysBack: 365 }));
@@ -74,5 +75,8 @@ await exercise("dilution_filings", () => dilutionFilings({ ticker: TICKER, daysB
 await exercise("short_interest", () => shortInterest({ ticker: TICKER, periodsBack: 4 }));
 await exercise("daily_short_volume", () => dailyShortVolume({ ticker: TICKER, daysBack: 5 }));
 await exercise("failures_to_deliver", () => failuresToDeliver({ ticker: TICKER, periodsBack: 2 }));
+
+// --- v0.3.0 Yahoo Finance live-quote tool ---
+await exercise("get_quote", () => quote({ ticker: TICKER }));
 
 console.log("\nDone.");

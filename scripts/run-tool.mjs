@@ -28,6 +28,7 @@ import { dilutionFilings } from "../dist/tools/dilutionFilings.js";
 import { shortInterest } from "../dist/tools/shortInterest.js";
 import { dailyShortVolume } from "../dist/tools/dailyShortVolume.js";
 import { failuresToDeliver } from "../dist/tools/failuresToDeliver.js";
+import { quote } from "../dist/tools/quote.js";
 
 const REGISTRY = {
   search_by_ticker: searchByTicker,
@@ -45,6 +46,7 @@ const REGISTRY = {
   short_interest: shortInterest,
   daily_short_volume: dailyShortVolume,
   failures_to_deliver: failuresToDeliver,
+  get_quote: quote,
 };
 
 // Known string fields that should never be number-coerced (CIKs and tickers

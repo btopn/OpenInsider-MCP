@@ -9,6 +9,7 @@ export default defineConfig({
           "tests/smoke.live.test.ts",
           "tests/smoke.edgar.live.test.ts",
           "tests/smoke.finra.live.test.ts",
+          "tests/smoke.yahoo.live.test.ts",
           "**/node_modules/**",
           "**/dist/**",
         ],
