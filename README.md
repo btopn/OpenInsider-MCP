@@ -345,6 +345,19 @@ To exercise the server interactively, use the official MCP inspector:
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
+For a one-shot dump of representative output from every tool against a known ticker (useful for verifying a deployment or eyeballing what each tool returns), use the included script:
+
+```sh
+npm run build
+node scripts/exercise-tools.mjs NVDA   # or any ticker
+```
+
+To identify your deployment to SEC EDGAR with your own contact info (polite practice), set the `OPENINSIDER_MCP_UA` env var:
+
+```sh
+OPENINSIDER_MCP_UA="my-app 1.0 me@example.com" node dist/index.js
+```
+
 ## Notes & non-goals
 
 - Cache is in-memory and per-process. The server has no database and no scheduled polling — each tool call fetches the relevant OpenInsider page on demand.
