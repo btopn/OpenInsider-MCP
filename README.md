@@ -11,6 +11,8 @@ The server exposes 15 tools across three free public data sources: **OpenInsider
 
 The server is positioned as a pure data layer: no scoring, no compositing, no editorialization. Each tool returns clean, well-typed observations with citations and gotchas baked into the tool descriptions. The orchestrator (Claude) decides what is significant.
 
+**What it won't do:** recommend buys / sells, combine signals into a score, run scheduled jobs, or persist anything between sessions. The MCP gives Claude raw observations; you and Claude reason from there.
+
 > Be polite. This scrapes a free public site and uses public SEC / FINRA endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches per-source: 5min for OpenInsider, 5min for SEC EDGAR submissions, 24h for SEC filing bodies and FINRA bi-monthly files, 6h for daily files. Repeated queries in a research session don't re-fetch.
 
 ## Install
@@ -30,36 +32,25 @@ Add to your Claude Desktop / Claude Code config:
 
 That's it — `npx` fetches and runs the server on demand.
 
+**Quick start.** Once installed, ask Claude something like *"What's recent insider activity at NVDA?"* — Claude calls `search_by_ticker` and returns the last 90 days of Form 4 filings. Follow up with *"Why did Mark Stevens sell on March 20?"* and Claude pulls the relevant 8-K via `recent_sec_filings`. The in-memory cache makes follow-ups instant.
+
 ## How to talk to it
 
-You don't call these tools directly — Claude does, based on what you ask. Some prompts that exercise the server well:
+You don't call these tools directly — Claude does, based on what you ask. Representative prompts:
 
-**Insider trading (OpenInsider):**
+**Single-source:**
 - *"What's recent insider activity at NVDA?"* → `search_by_ticker`
 - *"Are there any notable cluster buys this week?"* → `cluster_buys`
-- *"Show me CEO purchases over $500k in the last 30 days."* → `screen` with role + value filters
-- *"Has Jensen Huang sold any NVDA recently?"* → web-lookup CIK, then `search_by_insider`
-- *"What are the biggest insider sales this quarter?"* → `top_sells` (or `cluster_buys` for higher signal)
-
-**Corporate events (SEC EDGAR):**
 - *"What happened with NVDA recently?"* → `recent_sec_filings` (8-K item codes)
-- *"Did AAPL change officers?"* → `recent_sec_filings` with `itemCodes=["5.02"]`
-- *"Has TICKER had any restatements?"* → `recent_sec_filings` with `itemCodes=["4.02"]`
-- *"Is anything weird going on with TICKER's accounting?"* → `late_filings` (NT-10K/Q with accounting reasons)
-- *"Is anyone activist on GME?"* → `activist_filings` (13D filings)
 - *"Is BIOX raising money?"* → `dilution_filings` (S-3 / 424B5 takedowns)
-
-**Short interest & delivery (FINRA / SEC):**
 - *"How heavily is GME shorted? Is short interest rising?"* → `short_interest` (with delta and `pctOfFloat`)
 - *"Is shorting picking up on TICKER lately?"* → `daily_short_volume` (daily flow, not standing position)
-- *"Is TICKER on the threshold list?"* → `failures_to_deliver`
 
-**Multi-tool composition** (Claude does this automatically):
-- *"Is TICKER a short squeeze setup?"* → `short_interest` + `failures_to_deliver` + `search_by_ticker` (insider buying alongside heavy shorting is the strongest combo)
-- *"Why did TICKER drop today?"* → `recent_sec_filings` + `dilution_filings` + `search_by_ticker` (corporate event + dilution + insider context)
-- *"Research these 5 small-cap names and flag anything concerning"* → fan-out across all 15 tools, in-memory cache keeps repeats instant
+**Multi-tool** (Claude composes these automatically):
+- *"Is TICKER a short squeeze setup?"* → `short_interest` + `failures_to_deliver` + `search_by_ticker`
+- *"Why did TICKER drop today?"* → `recent_sec_filings` + `dilution_filings` + `search_by_ticker`
 
-The more specific the question, the better the tool selection.
+The more specific the question, the better the tool selection. See the [Quick reference](#quick-reference-which-tool-answers-what) table below for the full mapping.
 
 ## Quick reference: which tool answers what?
 
@@ -267,7 +258,10 @@ SEC failures-to-deliver per bi-monthly period plus current Reg SHO threshold-lis
 
 ## Trade object
 
-OpenInsider tools return `{ count, trades: Trade[] }`:
+OpenInsider tools return `{ count, trades: Trade[] }`. Key fields: `filingDate` / `tradeDate` (ISO), `ticker`, `insiderName`, `insiderCik`, `title`, `transactionType` (SEC code + label like `"P - Purchase"`), `price`, `quantity` (signed), `value` (signed), `formUrl`. `cluster_buys` adds `industry` + `insiderCount`.
+
+<details>
+<summary>Full Trade type definition</summary>
 
 ```ts
 {
@@ -289,6 +283,8 @@ OpenInsider tools return `{ count, trades: Trade[] }`:
   insiderCount?:     number;          // cluster_buys only — how many insiders clustered
 }
 ```
+
+</details>
 
 ### Transaction codes
 
@@ -317,7 +313,10 @@ In practice, when you ask Claude something like *"Has Tim Cook sold any AAPL rec
 
 ## EdgarFiling object
 
-The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
+The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fields: `ticker`, `cik` (zero-padded), `formType`, `filingDate`, `accessionNumber`, `primaryDocUrl`. Each tool also populates form-specific optional fields (`itemCodes` for 8-K, `reasonCategory` for NT, `filerName` / `pctOwned` / `purposeExcerpt` for 13D, `shelfAmount` / `useOfProceedsExcerpt` for S-3).
+
+<details>
+<summary>Full EdgarFiling type definition</summary>
 
 ```ts
 {
@@ -341,6 +340,8 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
 }
 ```
 
+</details>
+
 **Sample output** — `recent_sec_filings ticker=NVDA daysBack=180`:
 
 ```json
@@ -360,7 +361,10 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
 
 ## ShortSnapshot object
 
-`short_interest` returns `{ count, snapshots: ShortSnapshot[] }`:
+`short_interest` returns `{ count, snapshots: ShortSnapshot[] }` — fields: `ticker`, `reportDate`, `sharesShort`, `pctOfFloat` (via SEC XBRL), `daysToCover`, optional `delta` block. `daily_short_volume` returns `{ count, rows: { date, shortVolume, totalVolume, shortRatio }[] }`. `failures_to_deliver` returns `{ count, rows: { date, ftdShares, ftdValue, onThresholdList }[] }`.
+
+<details>
+<summary>Full ShortSnapshot type definition</summary>
 
 ```ts
 {
@@ -376,7 +380,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
 }
 ```
 
-`daily_short_volume` returns `{ count, rows: { date, shortVolume, totalVolume, shortRatio }[] }`. `failures_to_deliver` returns `{ count, rows: { date, ftdShares, ftdValue, onThresholdList }[] }`.
+</details>
 
 **Sample output** — `short_interest ticker=NVDA periodsBack=2`:
 
@@ -412,6 +416,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`:
 - **Cluster buys page returns `industry` and `insiderCount`.** These don't appear in the standard `Trade` shape — they're optional fields specific to that tool.
 - **`top_sells` is mostly noise.** For real sell-side signal, use `screen` with `transactionTypes: ["S"]` plus role filters (e.g., `isCeo: true`) and a dollar threshold.
 - **Cache is per-process and per-URL.** Repeat queries in the same Claude session are instant. Restart the server (close Claude) to bust it, or wait for the per-source TTL.
+- **Tool returns empty?** Widen `daysBack`, confirm the ticker exists in SEC EDGAR (some OTC names don't), or check timing — FINRA bi-monthly files lag ~7 business days after settlement, so the most recent period may not be published yet.
 - **`short_interest` is bi-monthly with a publication lag.** FINRA settles on the 15th + last business day of each month and publishes ~7 business days later. The most recent snapshot may lag spot price by 1–2 weeks.
 - **`daily_short_volume` ≠ `short_interest`.** The first is daily *flow* (shares sold short that day, summed across CNMS/FNRA/FNYX/FNQC venues); the second is a standing *position* snapshot. Numbers are not directly comparable — they measure different things.
 - **`pctOfFloat` is `sharesShort / sharesOutstanding` from SEC XBRL.** Commonly conflated with "public float" in retail data feeds; true public float requires restricted-share data not available via free SEC data. Returns `null` when the company doesn't file XBRL or uses a non-standard tag.
