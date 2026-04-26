@@ -1,6 +1,6 @@
 {
   "name": "openinsider-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server that exposes openinsider.com to any MCP compatible client.",
   "license": "MIT",
   "author": "btopn",
@@ -44,8 +44,16 @@
   },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "openinsider",
     "insider-trading",
+    "sec-edgar",
+    "finra",
+    "investment-research",
+    "llm",
+    "cursor",
+    "vscode",
+    "codex",
     "claude"
   ]
 }
