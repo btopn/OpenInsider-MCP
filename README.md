@@ -9,7 +9,7 @@ An [MCP](https://modelcontextprotocol.io) server that exposes 15 free-data inves
 
 The server exposes 15 tools across three free public data sources: **OpenInsider** (Form 4 insider trades), **SEC EDGAR** (8-K material events, late-filing notices, 13D activist filings, S-3 / 424B5 dilution), and **FINRA / SEC** (short interest, daily short volume, failures-to-deliver).
 
-The server is positioned as a pure data layer: no scoring, no compositing, no editorialization. Each tool returns clean, well-typed observations with citations and gotchas baked into the tool descriptions. The orchestrator (Claude) decides what is significant.
+The server is positioned as a pure data layer: no scoring, no compositing, no editorialization. Each tool returns clean, well-typed observations with citations and gotchas baked into the tool descriptions. The orchestrator LLM decides what is significant.
 
 **What it won't do:** recommend buys / sells, combine signals into a score, run scheduled jobs, or persist anything between sessions. The MCP gives Claude raw observations; you and Claude reason from there.
 
