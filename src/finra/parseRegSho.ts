@@ -10,8 +10,6 @@ const VENUES = ["CNMS", "FNRA", "FNYX", "FNQC"] as const;
 
 /**
  * FINRA Reg SHO daily short-sale volume file URL for a given venue and date.
- *
- * TODO(deployment): verify URL format on first live use.
  */
 export function buildRegShoUrl(venue: string, dateYYYYMMDD: string): string {
   return `https://cdn.finra.org/equity/regsho/daily/${venue}shvol${dateYYYYMMDD}.txt`;

@@ -6,7 +6,7 @@ import {
   recentSettlementDates,
 } from "../src/finra/parseShortInterest.js";
 import { buildRegShoUrl, recentBusinessDays } from "../src/finra/parseRegSho.js";
-import { buildFtdUrl, recentBiMonthlyDates } from "../src/finra/parseFtd.js";
+import { buildFtdUrl, buildThresholdUrls, recentBiMonthlyDates } from "../src/finra/parseFtd.js";
 
 const liveSmoke = process.env.SMOKE === "1" ? describe : describe.skip;
 
@@ -61,6 +61,26 @@ liveSmoke("live FINRA / SEC short data smoke test (URL drift detector)", () => {
     expect(first.pctOfFloat!).toBeGreaterThan(0);
     expect(first.pctOfFloat!).toBeLessThan(1); // SI should be a small fraction of shares outstanding
   }, 120_000);
+
+  it("Reg SHO threshold list URLs (Nasdaq + NYSE) return content for at least one recent business day", async () => {
+    const dates = recentBusinessDays(new Date(), 5);
+    let nasdaqOk = false;
+    let nyseOk = false;
+    for (const dateStr of dates) {
+      const urls = buildThresholdUrls(dateStr);
+      if (!nasdaqOk) {
+        const text = await fetchFinra(urls.nasdaq, { return404AsNull: true });
+        if (text !== null && text.length > 0) nasdaqOk = true;
+      }
+      if (!nyseOk) {
+        const text = await fetchFinra(urls.nyse, { return404AsNull: true });
+        if (text !== null && text.length > 0) nyseOk = true;
+      }
+      if (nasdaqOk && nyseOk) break;
+    }
+    expect(nasdaqOk, "Nasdaq threshold list URL appears to have changed").toBe(true);
+    expect(nyseOk, "NYSE threshold list URL appears to have changed (note: NYSE wants ISO YYYY-MM-DD, not YYYYMMDD)").toBe(true);
+  }, 90_000);
 
   it("SEC FTD URL returns ZIP content for at least one recent bi-monthly date", async () => {
     const dates = recentBiMonthlyDates(new Date(), 6);

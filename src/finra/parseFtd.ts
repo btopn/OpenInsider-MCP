@@ -26,12 +26,15 @@ export function buildFtdUrl(periodKey: string): string {
  * Reg SHO Threshold List URLs. Two sources (NYSE + Nasdaq); we merge into a
  * unified set of tickers that are currently on either threshold list.
  *
- * TODO(deployment): URL formats may have changed; verify on first live use.
+ * Verified pattern (2026-04): Nasdaq accepts YYYYMMDD; NYSE expects ISO
+ * YYYY-MM-DD and returns 400 with "Type mismatch error: Expected type
+ * LocalDate" otherwise.
  */
 export function buildThresholdUrls(dateYYYYMMDD: string): { nasdaq: string; nyse: string } {
+  const iso = `${dateYYYYMMDD.slice(0, 4)}-${dateYYYYMMDD.slice(4, 6)}-${dateYYYYMMDD.slice(6, 8)}`;
   return {
     nasdaq: `https://www.nasdaqtrader.com/dynamic/symdir/regsho/nasdaqth${dateYYYYMMDD}.txt`,
-    nyse: `https://www.nyse.com/api/regulatory/threshold-securities/download?selectedDate=${dateYYYYMMDD}`,
+    nyse: `https://www.nyse.com/api/regulatory/threshold-securities/download?selectedDate=${iso}`,
   };
 }
 
