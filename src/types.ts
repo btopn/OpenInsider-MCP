@@ -36,3 +36,34 @@ export interface ScreenFilters {
   excludeDerivativeRelated?: boolean;
   limit?: number;
 }
+
+export interface EdgarFiling {
+  ticker: string;
+  cik: string;
+  formType: string;
+  filingDate: string;
+  acceptanceDateTime: string;
+  accessionNumber: string;
+  primaryDocUrl: string;
+  itemCodes?: string[];
+  reasonText?: string | null;
+  reasonCategory?: "accounting" | "corporate" | "multiple" | "unspecified";
+  filerName?: string;
+  pctOwned?: number | null;
+  purposeExcerpt?: string | null;
+  isAmendment?: boolean;
+  shelfAmount?: number | null;
+  useOfProceedsExcerpt?: string | null;
+}
+
+export interface ShortSnapshot {
+  ticker: string;
+  reportDate: string;
+  sharesShort: number;
+  pctOfFloat: number | null;
+  daysToCover: number | null;
+  delta?: {
+    sharesShortDelta: number;
+    pctDelta: number;
+  };
+}

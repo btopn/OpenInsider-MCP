@@ -9,6 +9,12 @@ on:
   schedule:
     - cron: "0 12 * * 1"
 
+# Cancel a previous in-progress run when a new commit lands on the same ref.
+# Prevents redundant runs on rapid pushes (typo-fixes etc).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,9 +28,12 @@ jobs:
       - run: npm run build
       - run: npm test
 
+  # Live drift-detector + MCP-protocol end-to-end check. Runs on PR + schedule
+  # + workflow_dispatch. Skipped on direct push to main since the PR that
+  # produced the merge already ran smoke.
   smoke:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'push'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,4 +42,11 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      - run: SMOKE=1 npx vitest run tests/smoke.live.test.ts
+      # Tier 2: live smoke tests — confirm OpenInsider, SEC EDGAR, and FINRA
+      # endpoints + URL formats still work. Vitest auto-includes all
+      # tests/smoke.*.test.ts when SMOKE=1.
+      - run: SMOKE=1 npx vitest run
+      # Tier 3: drive every registered MCP tool through the real JSON-RPC
+      # stdio transport via the official @modelcontextprotocol/sdk Client.
+      # Same path Claude Desktop uses. Exits 1 if any tool call fails.
+      - run: node scripts/mcp-driver.mjs NVDA

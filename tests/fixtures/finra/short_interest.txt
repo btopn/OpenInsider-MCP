@@ -1,0 +1,5 @@
+accountingYearMonthNumber|symbolCode|issueName|issuerServicesGroupExchangeCode|marketClassCode|currentShortPositionQuantity|previousShortPositionQuantity|stockSplitFlag|averageDailyVolumeQuantity|daysToCoverQuantity|revisionFlag|changePercent|changePreviousNumber|settlementDate
+20240131|AAPL|APPLE INC|A|NASDAQ|110000000|115000000||55000000|2.0||-4.35|-5000000|2024-01-31
+20240131|NVDA|NVIDIA CORP|A|NASDAQ|95000000|100000000||45000000|2.11||-5.0|-5000000|2024-01-31
+20240131|MSFT|MICROSOFT CORP|A|NASDAQ|50000000|48000000||30000000|1.67||4.17|2000000|2024-01-31
+20240131|GME|GAMESTOP CORP|A|NYSE|22000000|18000000||3500000|6.29||22.22|4000000|2024-01-31
