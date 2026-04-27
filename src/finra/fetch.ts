@@ -6,14 +6,13 @@ const CONFIG: SourceConfig = {
   name: "FINRA",
   userAgent:
     process.env.OPENINSIDER_MCP_UA ?? "openinsider-mcp 0.2.0 contact@example.com",
-  defaultTtlMs: 24 * 60 * 60 * 1000,
+  defaultTtlMs: 5 * 60 * 1000,
   defaultAccept: "text/plain, */*",
   minIntervalMs: 100,
 };
 
 export interface FinraFetchOptions {
   cache?: boolean;
-  ttlMs?: number;
   // If true, return null on 404 OR 403 instead of throwing. FINRA's CloudFront
   // serves 403 (not 404) for non-existent objects, so we treat both as "file
   // missing" — useful when probing for files that may not yet be published
@@ -29,7 +28,6 @@ export async function fetchFinra(
 ): Promise<string | null> {
   return await fetchHttp(url, CONFIG, {
     cache: options.cache,
-    ttlMs: options.ttlMs,
     nullStatuses: options.return404AsNull ? [403, 404] : undefined,
   });
 }
@@ -40,7 +38,6 @@ export async function fetchFinraBinary(
 ): Promise<ArrayBuffer | null> {
   return await fetchHttpBinary(url, CONFIG, {
     cache: options.cache,
-    ttlMs: options.ttlMs,
     accept: "application/zip, application/octet-stream, */*",
     nullStatuses: options.return404AsNull ? [403, 404] : undefined,
   });

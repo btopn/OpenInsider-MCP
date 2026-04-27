@@ -1,7 +1,5 @@
 import { fetchFinra } from "./fetch.js";
 
-const REGSHO_TTL_MS = 6 * 60 * 60 * 1000;
-
 // Major venues whose Reg SHO daily files we aggregate. CNMS = Nasdaq Carteret,
 // FNRA = FINRA OTC, FNYX = NYSE OTC, FNQC = Nasdaq OTC. Per-venue fragmentation
 // is not useful to the orchestrator; we sum short volume + total volume across
@@ -149,7 +147,7 @@ async function fetchVenueRow(
   ticker: string,
 ): Promise<RawRegShoRow | null> {
   const url = buildRegShoUrl(venue, dateStr);
-  const text = await fetchFinra(url, { ttlMs: REGSHO_TTL_MS, return404AsNull: true });
+  const text = await fetchFinra(url, { return404AsNull: true });
   if (text === null) return null;
   const map = parseRegShoFile(text);
   return map.get(ticker) ?? null;

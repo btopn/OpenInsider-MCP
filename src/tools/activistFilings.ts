@@ -3,8 +3,6 @@ import { getRecentFilings } from "../edgar/submissions.js";
 import { fetchEdgar } from "../edgar/fetch.js";
 import { parse13DDetails } from "../edgar/parseFilingBody.js";
 
-const FILING_BODY_TTL_MS = 24 * 60 * 60 * 1000;
-
 export interface ActivistFilingsArgs {
   ticker: string;
   daysBack?: number;
@@ -36,7 +34,6 @@ export async function activistFilings(args: ActivistFilingsArgs): Promise<EdgarF
     try {
       const body = await fetchEdgar(f.primaryDocUrl, {
         accept: "text/html",
-        ttlMs: FILING_BODY_TTL_MS,
       });
       const parsed = parse13DDetails(body);
       filerName = parsed.filerName ?? undefined;

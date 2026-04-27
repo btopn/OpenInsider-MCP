@@ -3,7 +3,6 @@ import { getRecentFilings } from "../edgar/submissions.js";
 import { fetchEdgar } from "../edgar/fetch.js";
 import { parseS3ShelfDetails } from "../edgar/parseFilingBody.js";
 
-const FILING_BODY_TTL_MS = 24 * 60 * 60 * 1000;
 const DILUTION_FORMS = new Set(["S-3", "S-3/A", "S-3ASR", "424B5", "424B2", "424B3"]);
 
 export interface DilutionFilingsArgs {
@@ -31,7 +30,6 @@ export async function dilutionFilings(args: DilutionFilingsArgs): Promise<EdgarF
     try {
       const body = await fetchEdgar(f.primaryDocUrl, {
         accept: "text/html",
-        ttlMs: FILING_BODY_TTL_MS,
       });
       const parsed = parseS3ShelfDetails(body);
       shelfAmount = parsed.shelfAmount;

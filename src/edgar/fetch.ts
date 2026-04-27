@@ -15,7 +15,6 @@ const CONFIG: SourceConfig = {
 
 export interface EdgarFetchOptions {
   cache?: boolean;
-  ttlMs?: number;
   accept?: string;
 }
 

@@ -26,7 +26,7 @@ export interface SourceConfig {
   name: string;
   /** Sent as the User-Agent header on every request. */
   userAgent: string;
-  /** Default cache TTL in ms. Callers can override per-call via `ttlMs`. */
+  /** Cache TTL in ms. Applied to every fetch from this source. */
   defaultTtlMs: number;
   /** Default Accept header. Callers can override per-call via `accept`. */
   defaultAccept: string;

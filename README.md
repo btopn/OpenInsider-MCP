@@ -13,7 +13,7 @@ The server is positioned as a pure data layer: no scoring, no compositing, no ed
 
 **What it won't do:** recommend buys / sells, combine signals into a score, run scheduled jobs, or persist anything between sessions. The MCP gives your LLM raw observations; you and the LLM reason from there.
 
-> Be polite. This scrapes a free public site and uses public SEC / FINRA / Yahoo endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches per-source: 5min for OpenInsider, 5min for SEC EDGAR submissions, 24h for SEC filing bodies and FINRA bi-monthly files, 6h for daily files, 60s for Yahoo Finance quotes. Repeated queries in a research session don't re-fetch.
+> Be polite. This scrapes a free public site and uses public SEC / FINRA / Yahoo endpoints. The server identifies itself with a `User-Agent` (override via `OPENINSIDER_MCP_UA` env var) and caches every response in memory for 5 minutes (60 seconds for Yahoo Finance quotes, which are time-sensitive). Repeated queries in a research session don't re-fetch.
 
 ## Install
 
@@ -526,7 +526,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 - **The `value` field is signed.** Negative for sales, positive for buys. When summing portfolios, this gives you net flow for free.
 - **Cluster buys page returns `industry` and `insiderCount`.** These don't appear in the standard `Trade` shape — they're optional fields specific to that tool.
 - **`top_sells` is mostly noise.** For real sell-side signal, use `screen` with `transactionTypes: ["S"]` plus role filters (e.g., `isCeo: true`) and a dollar threshold.
-- **Cache is per-process and per-URL.** Repeat queries in the same MCP client session are instant. Restart the server (close your MCP client) to bust it, or wait for the per-source TTL.
+- **Cache is per-process and per-URL.** Repeat queries in the same MCP client session are instant. Restart the server (close your MCP client) to bust it, or wait for the 5-minute TTL (60 seconds for Yahoo Finance quotes).
 - **Tool returns empty?** Widen `daysBack`, confirm the ticker exists in SEC EDGAR (some OTC names don't), or check timing — FINRA bi-monthly files lag ~7 business days after settlement, so the most recent period may not be published yet.
 - **`short_interest` is bi-monthly with a publication lag.** FINRA settles on the 15th + last business day of each month and publishes ~7 business days later. The most recent snapshot may lag spot price by 1–2 weeks.
 - **`daily_short_volume` ≠ `short_interest`.** The first is daily *flow* (shares sold short that day, summed across CNMS/FNRA/FNYX/FNQC venues); the second is a standing *position* snapshot. Numbers are not directly comparable — they measure different things.
@@ -595,7 +595,7 @@ OPENINSIDER_MCP_UA="my-app 1.0 me@example.com" node dist/index.js
 
 ## Notes & non-goals
 
-- Cache is in-memory and per-process. The server has no database and no scheduled polling — each tool call fetches the relevant page or file on demand and caches by URL with the per-source TTL.
+- Cache is in-memory and per-process. The server has no database and no scheduled polling — each tool call fetches the relevant page or file on demand and caches by URL for 5 minutes (60 seconds for Yahoo Finance quotes).
 - This is not a Form 4 ingestion pipeline. The OpenInsider tools scrape the rendered tables from openinsider.com rather than parsing SEC Form 4 XML directly. The SEC EDGAR tools use the public submissions API + filing-body parsing for the form types they cover (8-K, NT-10K/Q, 13D, S-3 / 424B5).
 - HTML, file formats, and CDN paths can change. If a tool starts failing, run `SMOKE=1 npm test` to confirm whether the parser, URL pattern, or upstream availability is the problem, then open an issue or PR.
 

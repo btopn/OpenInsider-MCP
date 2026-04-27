@@ -1,8 +1,6 @@
 import { fetchEdgar } from "./fetch.js";
 import { tickerToCik, type CompanyRef } from "./cik.js";
 
-const SUBMISSIONS_TTL_MS = 5 * 60 * 1000;
-
 export interface SubmissionRecord {
   accessionNumber: string;
   filingDate: string;
@@ -40,7 +38,7 @@ export async function getRecentFilings(ticker: string): Promise<RecentFilings | 
   if (!company) return null;
 
   const url = `https://data.sec.gov/submissions/CIK${company.cikPadded}.json`;
-  const json = await fetchEdgar(url, { ttlMs: SUBMISSIONS_TTL_MS });
+  const json = await fetchEdgar(url);
   const data = JSON.parse(json) as SubmissionsResponse;
 
   const r = data.filings.recent;

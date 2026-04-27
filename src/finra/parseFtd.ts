@@ -1,9 +1,6 @@
 import AdmZip from "adm-zip";
 import { fetchFinra, fetchFinraBinary } from "./fetch.js";
 
-const FTD_TTL_MS = 24 * 60 * 60 * 1000;
-const THRESHOLD_TTL_MS = 6 * 60 * 60 * 1000;
-
 /**
  * SEC failures-to-deliver bi-monthly file URL.
  * Accepts either YYYYMMDD (auto-converted by half: day<=15 -> 'a', else 'b')
@@ -187,7 +184,7 @@ async function getCurrentThresholdSet(now: Date = new Date()): Promise<Set<strin
   const merged = new Set<string>();
   for (const url of [urls.nasdaq, urls.nyse]) {
     try {
-      const text = await fetchFinra(url, { ttlMs: THRESHOLD_TTL_MS, return404AsNull: true });
+      const text = await fetchFinra(url, { return404AsNull: true });
       if (text === null) continue;
       for (const sym of parseThresholdFile(text)) {
         merged.add(sym);
@@ -242,7 +239,7 @@ export async function getFailuresToDeliver(
   const rows: FtdRow[] = [];
   for (const periodKey of periodKeys) {
     const url = buildFtdUrl(periodKey);
-    const buf = await fetchFinraBinary(url, { ttlMs: FTD_TTL_MS, return404AsNull: true });
+    const buf = await fetchFinraBinary(url, { return404AsNull: true });
     if (buf === null) continue;
     const text = extractFtdText(buf);
     if (text === null) continue;
