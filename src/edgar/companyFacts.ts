@@ -1,7 +1,5 @@
 import { fetchEdgar } from "./fetch.js";
 
-const COMPANY_FACTS_TTL_MS = 24 * 60 * 60 * 1000;
-
 interface CompanyConceptResponse {
   cik?: number;
   taxonomy?: string;
@@ -46,7 +44,7 @@ export async function getLatestSharesOutstanding(cikPadded: string): Promise<num
   for (const tag of SHARES_OUTSTANDING_TAGS) {
     const url = `https://data.sec.gov/api/xbrl/companyconcept/CIK${cikPadded}/${tag}.json`;
     try {
-      const json = await fetchEdgar(url, { ttlMs: COMPANY_FACTS_TTL_MS });
+      const json = await fetchEdgar(url);
       const data = JSON.parse(json) as CompanyConceptResponse;
       const shares = data.units?.shares;
       if (!shares || shares.length === 0) continue;

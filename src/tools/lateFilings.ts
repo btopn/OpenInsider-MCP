@@ -3,7 +3,6 @@ import { getRecentFilings } from "../edgar/submissions.js";
 import { fetchEdgar } from "../edgar/fetch.js";
 import { classifyNtReason } from "../edgar/parseFilingBody.js";
 
-const FILING_BODY_TTL_MS = 24 * 60 * 60 * 1000;
 const NT_FORMS = new Set(["NT 10-K", "NT 10-Q", "NT 10-K/A", "NT 10-Q/A"]);
 
 export interface LateFilingsArgs {
@@ -31,7 +30,6 @@ export async function lateFilings(args: LateFilingsArgs): Promise<EdgarFiling[]>
     try {
       const body = await fetchEdgar(f.primaryDocUrl, {
         accept: "text/html",
-        ttlMs: FILING_BODY_TTL_MS,
       });
       const parsed = classifyNtReason(body);
       reasonText = parsed.reasonText;

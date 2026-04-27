@@ -1,7 +1,6 @@
 import { fetchEdgar } from "./fetch.js";
 
 const TICKER_INDEX_URL = "https://www.sec.gov/files/company_tickers.json";
-const TICKER_INDEX_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface CompanyRef {
   cikInt: string;
@@ -20,7 +19,7 @@ let cikIndex: Map<string, CompanyRef> | null = null;
 async function loadCikIndex(): Promise<Map<string, CompanyRef>> {
   if (cikIndex) return cikIndex;
 
-  const json = await fetchEdgar(TICKER_INDEX_URL, { ttlMs: TICKER_INDEX_TTL_MS });
+  const json = await fetchEdgar(TICKER_INDEX_URL);
   const data = JSON.parse(json) as Record<string, CompanyTickerEntry>;
 
   const map = new Map<string, CompanyRef>();

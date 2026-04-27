@@ -3,8 +3,6 @@ import { fetchFinra } from "./fetch.js";
 import { tickerToCik } from "../edgar/cik.js";
 import { getLatestSharesOutstanding } from "../edgar/companyFacts.js";
 
-const SI_TTL_MS = 24 * 60 * 60 * 1000;
-
 /**
  * FINRA bi-monthly short interest file URL.
  * Verified pattern (2026-04): pipe-delimited despite the .csv extension,
@@ -173,7 +171,7 @@ export async function getShortInterestSnapshots(
   const snapshots: ShortSnapshot[] = [];
   for (const dateStr of dates) {
     const url = buildShortInterestUrl(dateStr);
-    const text = await fetchFinra(url, { ttlMs: SI_TTL_MS, return404AsNull: true });
+    const text = await fetchFinra(url, { return404AsNull: true });
     if (text === null) continue;
 
     const map = parseShortInterestFile(text);
