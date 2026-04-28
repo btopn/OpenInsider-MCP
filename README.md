@@ -4,6 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/openinsider-mcp.svg)](https://www.npmjs.com/package/openinsider-mcp)
 [![CI](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/btopn)
 
 An [MCP](https://modelcontextprotocol.io) server that exposes 16 free-data investment-research signals to any MCP-compatible LLM client — Form 4 insider trades, SEC corporate-event filings, FINRA / SEC short data, and live Yahoo Finance quotes. Drop it into your MCP client (Cursor, Claude Desktop, VS Code, Claude Code, Codex, etc.) and your LLM can query these signals directly during long research sessions, without burning context on web browsing.
 
@@ -602,3 +603,13 @@ OPENINSIDER_MCP_UA="my-app 1.0 me@example.com" node dist/index.js
 ## License
 
 MIT
+
+## Star history
+
+<a href="https://www.star-history.com/#btopn/OpenInsider-MCP&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=btopn/OpenInsider-MCP&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=btopn/OpenInsider-MCP&type=Date" />
+    <img alt="OpenInsider-MCP star history" src="https://api.star-history.com/svg?repos=btopn/OpenInsider-MCP&type=Date" />
+  </picture>
+</a>
