@@ -12,6 +12,8 @@ const mockQuote = (ticker: string) => ({
   exchange: "NMS",
   currency: "USD",
   timestamp: "2026-04-25T20:00:00Z",
+  dataAsOf: "2026-04-25T20:00:00Z",
+  marketState: "regular",
   price: 100,
   previousClose: 99,
   dayOpen: 100,
