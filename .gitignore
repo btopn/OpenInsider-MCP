@@ -9,3 +9,4 @@ coverage/
 _recon.*
 tests/fixtures/insider_name.html
 CLAUDE.md
+.claude/scheduled_tasks.lock

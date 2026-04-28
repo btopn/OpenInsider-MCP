@@ -4,6 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/openinsider-mcp.svg)](https://www.npmjs.com/package/openinsider-mcp)
 [![CI](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/btopn/OpenInsider-MCP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/btopn)
 
 An [MCP](https://modelcontextprotocol.io) server that exposes 16 free-data investment-research signals to any MCP-compatible LLM client — Form 4 insider trades, SEC corporate-event filings, FINRA / SEC short data, and live Yahoo Finance quotes. Drop it into your MCP client (Cursor, Claude Desktop, VS Code, Claude Code, Codex, etc.) and your LLM can query these signals directly during long research sessions, without burning context on web browsing.
 
@@ -483,7 +484,7 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 
 ## Quote object
 
-`get_quote` returns a single `Quote` object directly (no array, no `count` wrapper). Always populated: identity (`ticker`, `currency`, `timestamp`), `price`, `previousClose`, 52-week range, `volume`. Nullable in cases where the metric doesn't apply: `exchange` (null if Yahoo returned an unexpected exchange code), `averageVolume` (null for illiquid issues without a 3-month average), `marketCap` / `beta` / `trailingPE` / `forwardPE` (null for ETFs and instruments where N/A), `dividendYield` / `exDividendDate` (null for non-dividend payers), `earningsDate` (null when no upcoming consensus).
+`get_quote` returns a single `Quote` object directly (no array, no `count` wrapper). Always populated: identity (`ticker`, `currency`, `timestamp`, `dataAsOf`, `marketState`), `price`, `previousClose`, 52-week range, `volume`. `timestamp` is the time of the last actual tick (Yahoo's `regularMarketTime`); `dataAsOf` is when the MCP assembled the response — comparing the two reveals tick lag for illiquid securities or sessions outside regular hours. `marketState` is one of `regular | pre | post | prepre | postpost | closed`. Nullable in cases where the metric doesn't apply: `exchange` (null if Yahoo returned an unexpected exchange code), `averageVolume` (null for illiquid issues without a 3-month average), `marketCap` / `beta` / `trailingPE` / `forwardPE` (null for ETFs and instruments where N/A), `dividendYield` / `exDividendDate` (null for non-dividend payers), `earningsDate` (null when no upcoming consensus).
 
 <details>
 <summary>Full Quote type definition</summary>
@@ -493,7 +494,9 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
   ticker:           string;
   exchange:         string | null;
   currency:         string;            // ISO-4217, e.g. "USD" — local for foreign tickers
-  timestamp:        string;            // ISO 8601 of regularMarketTime
+  timestamp:        string;            // ISO 8601 of regularMarketTime — last actual tick
+  dataAsOf:         string;            // ISO 8601 of when the MCP assembled this object
+  marketState:      string;            // regular | pre | post | prepre | postpost | closed
 
   price:            number;
   previousClose:    number;
@@ -540,8 +543,8 @@ The 4 EDGAR-sourced tools return `{ count, filings: EdgarFiling[] }`. Common fie
 - **EDGAR tools cap at `limit: 50` filings by default.** `recent_sec_filings`, `late_filings`, `activist_filings`, and `dilution_filings` each accept a `limit` arg. Body-fetching tools (`late_filings` / `activist_filings` / `dilution_filings`) fetch one filing body per result — banks and other very-active 424B-prospectus filers can have hundreds of dilution filings per year and would exceed the MCP client's request timeout if all bodies were fetched. If you set `limit` higher than what's available, the tool just returns what's there (no padding, no error).
 - **`get_quote` returns `dividendYield` as a decimal, not a percent.** `0.0042` means 0.42%, matching Yahoo's wire format. Multiply by 100 if you want to display it as "0.42%".
 - **ETFs typically have null `trailingPE` / `forwardPE`** — those metrics don't apply to fund structures. Many ETFs still expose `dividendYield`.
-- **`get_quote` `timestamp` is the time of the most recent regular-session price.** On weekends, holidays, and outside market hours it points to the *last trading session*, not "now".
-- **`get_quote` is hardened against prompt injection through the response.** Every string field surfaced to the LLM is validated: `ticker` comes from the validated input (never from Yahoo's response), `exchange` must match `/^[A-Z0-9_-]{1,12}$/` or returns `null`, `currency` must be a 3-letter ISO-4217 code or the call throws, dates are constrained to `YYYY-MM-DD`, and numerics must be finite. Yahoo's own error text is never passed through verbatim. Numeric fields can't carry text instructions; the only strings reachable from a Yahoo response are tightly-bounded short codes.
+- **`get_quote` `timestamp` is the last actual tick — not "now".** For illiquid securities (low daily volume, after-hours, weekends, halted) it can be hours or days behind wall clock. To detect this, compare `timestamp` to `dataAsOf` (when the MCP served the object) and check `marketState` (`regular` means the session is open, so a large gap there is the "this just hasn't traded recently" case; `closed` / `pre` / `post` explain expected gaps).
+- **`get_quote` is hardened against prompt injection through the response.** Every string field surfaced to the LLM is validated: `ticker` comes from the validated input (never from Yahoo's response), `exchange` must match `/^[A-Z0-9_-]{1,12}$/` or returns `null`, `currency` must be a 3-letter ISO-4217 code or the call throws, `marketState` must match a known enum or the call throws, dates are constrained to `YYYY-MM-DD`, and numerics must be finite. Yahoo's own error text is never passed through verbatim. Numeric fields can't carry text instructions; the only strings reachable from a Yahoo response are tightly-bounded short codes.
 
 ## Develop
 
@@ -602,3 +605,13 @@ OPENINSIDER_MCP_UA="my-app 1.0 me@example.com" node dist/index.js
 ## License
 
 MIT
+
+## Star history
+
+<a href="https://www.star-history.com/#btopn/OpenInsider-MCP&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=btopn/OpenInsider-MCP&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=btopn/OpenInsider-MCP&type=Date" />
+    <img alt="OpenInsider-MCP star history" src="https://api.star-history.com/svg?repos=btopn/OpenInsider-MCP&type=Date" />
+  </picture>
+</a>

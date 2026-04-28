@@ -43,6 +43,14 @@ function nonZero(n: number | null): number | null {
 // the price correctly).
 const EXCHANGE_RE = /^[A-Z0-9_-]{1,12}$/;
 const CURRENCY_RE = /^[A-Z]{3}$/;
+const MARKET_STATE_VALUES = new Set([
+  "regular",
+  "pre",
+  "post",
+  "prepre",
+  "postpost",
+  "closed",
+]);
 
 function cleanExchange(node: unknown): string | null {
   return typeof node === "string" && EXCHANGE_RE.test(node) ? node : null;
@@ -52,6 +60,16 @@ function cleanCurrency(node: unknown, ticker: string): string {
   if (typeof node === "string" && CURRENCY_RE.test(node)) return node;
   throw new YahooMalformedResponseError(
     `Yahoo Finance: invalid or missing currency for ${ticker}`,
+  );
+}
+
+function cleanMarketState(node: unknown, ticker: string): string {
+  if (typeof node === "string") {
+    const lower = node.toLowerCase();
+    if (MARKET_STATE_VALUES.has(lower)) return lower;
+  }
+  throw new YahooMalformedResponseError(
+    `Yahoo Finance: invalid or missing marketState for ${ticker}`,
   );
 }
 
@@ -103,6 +121,8 @@ export function parseQuoteSummary(json: unknown, ticker: string): Quote {
     exchange: cleanExchange(price.exchange),
     currency: cleanCurrency(price.currency, ticker),
     timestamp: unixToIso(regularMarketTime),
+    dataAsOf: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    marketState: cleanMarketState(price.marketState, ticker),
 
     price: currentPrice,
     previousClose: required(pickRaw(summary.regularMarketPreviousClose) ?? pickRaw(price.regularMarketPreviousClose), "previousClose", ticker),

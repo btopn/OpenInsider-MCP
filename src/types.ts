@@ -72,7 +72,9 @@ export interface Quote {
   ticker:           string;
   exchange:         string | null;
   currency:         string;
-  timestamp:        string;          // ISO 8601 of regularMarketTime
+  timestamp:        string;          // ISO 8601 of regularMarketTime — last actual tick, can lag wall clock for illiquid issues or outside regular hours
+  dataAsOf:         string;          // ISO 8601 of when this object was assembled by the MCP (use vs. timestamp to detect tick lag)
+  marketState:      string;          // regular | pre | post | prepre | postpost | closed
 
   price:            number;
   previousClose:    number;
